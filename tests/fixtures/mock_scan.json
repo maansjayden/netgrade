@@ -3,6 +3,8 @@
   "scanned_at": "2026-07-28T14:03:11Z",
   "grade": "C",
   "score": 61,
+  "checks_scored": 6,
+  "cached": false,
   "checks": [
     {
       "id": "email_spoofing",
@@ -10,25 +12,124 @@
       "status": "fail",
       "severity": "high",
       "summary": "No DMARC policy is published.",
-      "explanation": "Anyone can send email pretending to come from your domain, risking impersonation and phishing attacks.",
-      "fix": "Publish a DMARC record starting at p=none, then tighten to p=reject.",
+      "explanation": "Anyone can send email that appears to come from your domain. Without DMARC, receiving mail servers have no instruction to reject those messages, so invoice fraud and staff impersonation land in inboxes looking legitimate.",
+      "fix": "Publish a DMARC record at _dmarc.example-business.com starting at p=none so you can see who is sending as you, then tighten to p=quarantine and finally p=reject once the reports look clean.",
+      "duration_ms": 214,
       "evidence": {
+        "spf_record": "v=spf1 include:_spf.google.com ~all",
+        "spf_qualifier": "~all",
         "dmarc_record": null,
-        "spf_record": "v=spf1 include:_spf.google.com ~all"
+        "dkim_selectors_found": ["google"],
+        "organisational_domain": "example-business.com"
+      }
+    },
+    {
+      "id": "cookie_flags",
+      "title": "Cookie security flags",
+      "status": "fail",
+      "severity": "medium",
+      "summary": "The session cookie is missing HttpOnly and SameSite.",
+      "explanation": "Without HttpOnly, any script running on the page can read the session cookie, so a single cross-site scripting bug becomes a full account takeover. Without SameSite, the cookie is sent on requests started by other websites.",
+      "fix": "Set HttpOnly and SameSite=Lax on session_id. Most frameworks do this with one configuration setting rather than a code change.",
+      "duration_ms": 486,
+      "evidence": {
+        "cookies_examined": 2,
+        "findings": [
+          {"name": "session_id", "secure": true, "httponly": false, "samesite": null},
+          {"name": "cart_ref", "secure": true, "httponly": true, "samesite": "Lax"}
+        ]
+      }
+    },
+    {
+      "id": "security_headers",
+      "title": "HTTP security headers",
+      "status": "warn",
+      "severity": "medium",
+      "summary": "No Content-Security-Policy is set; the other three headers are present.",
+      "explanation": "A Content-Security-Policy tells the browser which scripts it is allowed to run. Without one, a single injected script anywhere on the page runs with full access to what your visitors see and type.",
+      "fix": "Add a Content-Security-Policy header. Start in report-only mode so you can see what it would block before it breaks anything on the site.",
+      "duration_ms": 502,
+      "evidence": {
+        "strict-transport-security": "max-age=31536000",
+        "content-security-policy": null,
+        "x-frame-options": "SAMEORIGIN",
+        "x-content-type-options": "nosniff",
+        "hsts_max_age_seconds": 31536000,
+        "hsts_includes_subdomains": false,
+        "final_url": "https://example-business.com/"
+      }
+    },
+    {
+      "id": "dns_hygiene",
+      "title": "DNS hygiene",
+      "status": "warn",
+      "severity": "low",
+      "summary": "Both nameservers belong to a single provider.",
+      "explanation": "If that one provider has an outage, your website and email both disappear at the same time and you have no way to redirect them. Zone transfers are correctly refused, and no dangling records were found.",
+      "fix": "Add a secondary DNS provider. Most registrars support this and it is usually a configuration change rather than a migration.",
+      "duration_ms": 731,
+      "evidence": {
+        "nameservers": ["ns1.example-host.nl", "ns2.example-host.nl"],
+        "distinct_providers": 1,
+        "zone_transfer": {
+          "ns1.example-host.nl": "refused",
+          "ns2.example-host.nl": "refused"
+        },
+        "dangling_records": [],
+        "records_examined": ["example-business.com", "www.example-business.com"]
       }
     },
     {
       "id": "tls_config",
-      "title": "TLS/SSL configuration",
+      "title": "TLS configuration",
       "status": "pass",
-      "severity": "low",
-      "summary": "Valid TLS 1.3 certificate detected.",
-      "explanation": "Your site enforces modern encrypted HTTPS connections with strong cipher suites.",
-      "fix": "Maintain auto-renewal for certificates.",
+      "severity": "info",
+      "summary": "TLS 1.3 with a strong cipher; the certificate has 64 days left.",
+      "explanation": "Traffic between your visitors and your site is encrypted with a current protocol, and the outdated versions that attackers target are refused.",
+      "fix": "No action needed. Confirm certificate auto-renewal is running so this does not lapse.",
+      "duration_ms": 389,
       "evidence": {
         "tls_version": "TLSv1.3",
         "cipher": "TLS_AES_256_GCM_SHA384",
-        "days_remaining": 64
+        "certificate_expires": "2026-10-01T09:14:00Z",
+        "days_remaining": 64,
+        "issuer": "Let's Encrypt R11",
+        "protocols_offered": ["TLSv1.2", "TLSv1.3"],
+        "protocols_refused": ["TLSv1.0", "TLSv1.1"]
+      }
+    },
+    {
+      "id": "exposed_artefacts",
+      "title": "Exposed files",
+      "status": "pass",
+      "severity": "info",
+      "summary": "None of the three checked paths are reachable.",
+      "explanation": "Development files left on a live server can expose source code, database passwords and API keys to anyone who requests them directly. None were found here.",
+      "fix": "No action needed.",
+      "duration_ms": 643,
+      "evidence": {
+        "paths_checked": ["/.git/config", "/.env", "/.DS_Store"],
+        "responses": {
+          "/.git/config": 404,
+          "/.env": 404,
+          "/.DS_Store": 404
+        },
+        "exposed": []
+      }
+    },
+    {
+      "id": "cert_history",
+      "title": "Certificate history",
+      "status": "error",
+      "severity": "info",
+      "summary": "Could not check: the certificate transparency log did not respond in time.",
+      "explanation": "This check reads public certificate transparency logs to find subdomains that were issued certificates and may have been forgotten. The log service was unreachable, so nothing can be said either way.",
+      "fix": "No action needed from you. Re-run the scan later; this check depends on an external public service.",
+      "duration_ms": 8003,
+      "evidence": {
+        "source": "crt.sh",
+        "error": "timeout after 8.0s",
+        "certificates_found": null
       }
     }
   ]
