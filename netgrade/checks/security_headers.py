@@ -128,7 +128,11 @@ def _verdict(assessment: _Assessment) -> tuple[CheckStatus, Severity, str, str]:
         return (
             "fail",
             "high",
-            f"{len(missing)} of the four security headers are missing.",
+            (
+                "All four security headers are missing."
+                if len(missing) == len(_FRIENDLY_NAMES)
+                else f"{len(missing)} of the four security headers are missing."
+            ),
             f"Add {_join(names)} to your web server or CDN configuration. These are "
             "response headers, not code changes, and most hosting panels expose them "
             "directly.",

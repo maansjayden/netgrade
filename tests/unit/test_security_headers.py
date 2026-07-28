@@ -33,7 +33,7 @@ def test_all_headers_present_passes():
 def test_no_headers_at_all_fails_high():
     status, severity, summary, fix = _verdict(_assess_headers(response({})))
     assert (status, severity) == ("fail", "high")
-    assert "4 of the four" in summary
+    assert summary == "All four security headers are missing."
     assert "response headers, not code changes" in fix
 
 

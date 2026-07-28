@@ -13,8 +13,30 @@ venv
 Dockerfile
 docker-compose.yml
 README.md
+*.md
+
+# Development-only. The runtime image installs from requirements.txt alone,
+# so the test and lint toolchain is not present and its manifest is noise.
+requirements-dev.txt
+pyproject.toml
+.github
+
+# Generated at runtime, not source. It is gitignored, so Railway building from
+# the repo never sees it -- but a local `docker build` reads the filesystem and
+# would bake one developer's cached briefings into the image. Excluding it
+# keeps a local build and a platform build producing the same thing.
+static/audio_cache
 
 # Internal team material. Must never be baked into a published image.
 *.pdf
 IMG_*.jpeg
 IMG_*.jpg
+
+# tests/ is deliberately NOT excluded. api.py loads
+# tests/fixtures/mock_scan.json at import time to serve /api/v1/mock-scan, so
+# an image without it fails to start rather than failing a test. Verified by
+# deleting the file and importing netgrade.main: FileNotFoundError.
+#
+# The right fix is to move that fixture inside the package, where runtime code
+# is entitled to live, and have the tests read it from there. That is a change
+# to four files and is not worth making on the way to a deploy.

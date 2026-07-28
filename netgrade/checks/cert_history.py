@@ -25,7 +25,7 @@ from typing import Any, Final
 
 import httpx
 
-from netgrade.checks.base import Check
+from netgrade.checks.base import Check, error_result
 from netgrade.context import ScanContext
 from netgrade.models import CheckResult, CheckStatus, Severity
 
@@ -39,13 +39,23 @@ TITLE: Final = "Certificate history"
 #: for the user is worse than a check that reports it could not look.
 _SOURCE: Final = "crt.sh"
 _SOURCE_URL: Final = "https://crt.sh/?q=%25.{domain}&output=json&exclude=expired"
-_REQUEST_TIMEOUT: Final = 20.0
+_REQUEST_TIMEOUT: Final = 6.0
 
 #: crt.sh returns a transient 502 often enough that a single attempt reports
 #: "could not check" for a service that is actually working. One retry, not
 #: several: the point is to ride out a blip, not to insist.
 _RETRIES: Final = 1
-_CHECK_TIMEOUT: Final = 45.0
+
+#: Two attempts at _REQUEST_TIMEOUT each fit inside this with room to spare, so
+#: an unresponsive source is reported by this module -- which knows it was
+#: talking to crt.sh -- rather than by the generic budget in checks.base. The
+#: ceiling is a backstop, not the mechanism.
+#:
+#: It was 45s, sized for a slow-but-working crt.sh. That was wrong: a scan is
+#: only as fast as its slowest check, so a degraded third party set the wall
+#: clock for every scan. A tight budget loses the occasional slow success and
+#: keeps the report responsive, which is the better trade for this check.
+_CHECK_TIMEOUT: Final = 15.0
 
 #: Above this many distinct names, the certificate footprint is worth a look
 #: from the owner. Not a vulnerability -- a prompt to check that every name
@@ -66,7 +76,11 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
     """Read the certificate transparency record for this domain."""
     await ctx.assert_domain_exists(domain)
 
-    entries = await _fetch_entries(domain, ctx)
+    try:
+        entries = await _fetch_entries(domain, ctx)
+    except (httpx.HTTPError, ValueError) as exc:
+        return _source_unavailable(exc)
+
     history = _summarise(entries, domain)
     status, severity, summary, fix = _assess(history)
 
@@ -90,6 +104,27 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
             "issuers": list(history.issuers[:10]),
             "most_recent_issue": history.most_recent,
         },
+    )
+
+
+def _source_unavailable(exc: Exception) -> CheckResult:
+    """Report that the log service could not be read, and say which one.
+
+    Every other check talks to the domain being scanned, so the generic
+    handling in checks.base -- "the site could not be reached" -- names the
+    right host. This one talks to a third-party aggregator, and letting that
+    message through would tell an owner their site was unreachable when the
+    only thing that was down is a log service they have never heard of.
+    """
+    detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+    logger.warning("%s unavailable: %s", _SOURCE, detail)
+    return error_result(
+        CHECK,
+        summary=(
+            f"Could not check: the public certificate log service ({_SOURCE}) "
+            f"did not respond. This is not a problem with your domain."
+        ),
+        detail=detail,
     )
 
 
