@@ -1,0 +1,55 @@
+[project]
+name = "netgrade"
+version = "1.0.0"
+description = "Passive security posture scanner for small businesses"
+requires-python = ">=3.13"
+
+# Dependencies deliberately live in requirements.txt rather than here. The
+# Dockerfile and CI workflow already install from it, and splitting the
+# manifest in two mid-build would break a working deploy path for no gain.
+# Consolidating onto pyproject is a single change to make alongside the
+# Dockerfile fix, not before it.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# auto mode runs `async def test_*` without a per-test decorator. One line of
+# config instead of a marker on every async test in the engine suite.
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import sorting
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "ASYNC",    # async correctness: blocking calls in async defs
+    "S",        # bandit security rules
+    "ANN",      # missing type annotations
+    "RUF",
+]
+ignore = [
+    "ANN401",   # Any is legitimate in evidence dicts, which are free-form
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert on literals and use fixtures with obvious types; S101 is
+# `assert`, which is the point of a test.
+"tests/**" = ["S101", "ANN"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+
+# The presentation layer and the audio briefing are the teammate's files and
+# predate this configuration. Excluded rather than silently rewritten.
+[[tool.mypy.overrides]]
+module = ["netgrade.main", "netgrade.audio"]
+ignore_errors = true
