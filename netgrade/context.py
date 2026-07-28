@@ -211,7 +211,7 @@ class ScanContext:
         current = url
 
         for _ in range(MAX_REDIRECTS + 1):
-            await self._assert_public_host(httpx.URL(current).host)
+            await self.assert_public_host(httpx.URL(current).host)
 
             async with self.limiter:
                 request = self.http.build_request(method, current)
@@ -251,7 +251,7 @@ class ScanContext:
             addresses.extend(record.address for record in answer)
         return addresses
 
-    async def _assert_public_host(self, host: str | None) -> None:
+    async def assert_public_host(self, host: str | None) -> None:
         """Refuse to send traffic to anything not publicly routable.
 
         The scanner fetches URLs derived from user input, which is the shape of
