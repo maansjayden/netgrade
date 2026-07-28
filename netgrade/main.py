@@ -1,12 +1,16 @@
 import os
 import json
+import logging
 from datetime import datetime
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from netgrade.models import ScanResult, CheckResult
 from netgrade.audio import ElevenLabsAudioGenerator
+from netgrade.api import router as api_router
+
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI Application Scaffolding & Routing
 app = FastAPI(
@@ -25,8 +29,17 @@ if os.path.exists(static_dir):
 templates = Jinja2Templates(directory=templates_dir if os.path.exists(templates_dir) else BASE_DIR)
 audio_gen = ElevenLabsAudioGenerator()
 
+# JSON contract routes under /api/v1. Schema is published at /docs.
+app.include_router(api_router)
+
 
 def load_mock_scan(domain: str) -> ScanResult:
+    """Load the sample report fixture.
+
+    This is illustrative data, not a scan. It may only be served from routes
+    whose name makes that obvious to the user (``/sample-report``). It must
+    never be substituted for a real scan result on an error path.
+    """
     fixture_path = os.path.join(BASE_DIR, "tests", "fixtures", "mock_scan.json")
     if os.path.exists(fixture_path):
         with open(fixture_path, "r") as f:
@@ -73,35 +86,49 @@ async def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.get("/scan", response_class=HTMLResponse)
 async def scan_domain(request: Request, domain: str = "example.com", force: bool = False):
     clean_domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
     
+    # Deferred import: the engine is not in this build yet. Moves to module
+    # scope at Phase 4 integration, once netgrade.orchestrator exists.
     try:
         from netgrade.orchestrator import ScannerOrchestrator
         from netgrade.scoring import calculate_score_and_grade
-        orchestrator = ScannerOrchestrator()
-        checks = await orchestrator.run_all_checks(clean_domain)
-        score, grade = calculate_score_and_grade(checks)
-        report = ScanResult(
-            domain=clean_domain,
-            scanned_at=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-            grade=grade,
-            score=score,
-            checks=checks
-        )
-    except Exception:
-        report = load_mock_scan(clean_domain)
+    except ImportError as exc:
+        logger.error("scan requested but engine is not installed: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The scanning engine is not available in this build. "
+                "No results can be produced for this domain."
+            ),
+        ) from exc
+
+    # Deliberately unguarded. A domain that cannot be reached is not an
+    # exception -- each check returns status='error' as data. So anything
+    # raising here is a defect in the engine, and it must be loud rather
+    # than degrade into sample data the user would read as a real finding.
+    orchestrator = ScannerOrchestrator()
+    checks = await orchestrator.run_all_checks(clean_domain)
+    score, grade = calculate_score_and_grade(checks)
+    report = ScanResult(
+        domain=clean_domain,
+        scanned_at=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        grade=grade,
+        score=score,
+        checks=checks
+    )
 
     audio_url = await audio_gen.get_or_generate_audio(
         report.domain, report.grade, report.score, report.checks
     )
     report.audio_briefing_url = audio_url
 
-    return templates.TemplateResponse("report.html", {"request": request, "report": report})
+    return templates.TemplateResponse(request, "report.html", {"report": report})
 
 
 @app.get("/compare", response_class=HTMLResponse)
@@ -114,8 +141,7 @@ async def compare_domains(request: Request, domain1: str = None, domain2: str = 
         report2.score = 84
         report2.grade = "B"
 
-    return templates.TemplateResponse("compare.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "compare.html", {
         "domain1": domain1,
         "domain2": domain2,
         "report1": report1,
@@ -130,4 +156,4 @@ async def sample_report(request: Request):
         report.domain, report.grade, report.score, report.checks
     )
     report.audio_briefing_url = audio_url
-    return templates.TemplateResponse("report.html", {"request": request, "report": report})
+    return templates.TemplateResponse(request, "report.html", {"report": report})
