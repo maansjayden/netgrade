@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Final
 
-from netgrade.checks.base import Check
+from netgrade.checks.base import Check, redirect_note
 from netgrade.context import HttpResult, ScanContext
 from netgrade.models import CheckResult, CheckStatus, Severity
 
@@ -68,7 +68,7 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
         title=TITLE,
         status=status,
         severity=severity,
-        summary=summary,
+        summary=summary + redirect_note(domain, response.url),
         explanation=_explain(assessment),
         fix=fix,
         evidence={

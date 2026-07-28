@@ -36,6 +36,13 @@ class Check:
     title: str
     run: CheckRunner
 
+    #: Overrides the scan-wide budget for this check alone. Only cert_history
+    #: uses it: it queries a third-party log aggregator whose latency has
+    #: nothing to do with the domain being scanned, and holding it to the same
+    #: budget as a local DNS lookup means reporting "could not check" for what
+    #: is really just a slow but working service.
+    timeout: float | None = None
+
 
 async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
     """Run one check under its time budget. Never raises.
@@ -45,16 +52,17 @@ async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
     we could not reach has not earned an F.
     """
     started = time.perf_counter()
+    budget = check.timeout or ctx.timeouts.check
 
     try:
-        async with asyncio.timeout(ctx.timeouts.check):
+        async with asyncio.timeout(budget):
             result = await check.run(domain, ctx)
     except TimeoutError:
-        logger.warning("check %s timed out after %.1fs", check.id, ctx.timeouts.check)
+        logger.warning("check %s timed out after %.1fs", check.id, budget)
         result = error_result(
             check,
             summary="Could not check: the domain took too long to respond.",
-            detail=f"exceeded the {ctx.timeouts.check:.0f}s budget for this check",
+            detail=f"exceeded the {budget:.0f}s budget for this check",
         )
     except DomainNotFoundError as exc:
         logger.info("check %s: %s", check.id, exc)
@@ -71,11 +79,14 @@ async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
             detail=str(exc),
         )
     except httpx.HTTPError as exc:
-        logger.warning("check %s network failure: %s", check.id, exc)
+        # httpx timeout exceptions stringify to nothing at all, so the type
+        # name has to carry the meaning or the log line says only "failure: ".
+        detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        logger.warning("check %s network failure: %s", check.id, detail)
         result = error_result(
             check,
             summary="Could not check: the site could not be reached.",
-            detail=f"{type(exc).__name__}: {exc}",
+            detail=detail,
         )
     except Exception as exc:
         # Deliberately broad, and deliberately the last clause. A defect in one
@@ -92,6 +103,21 @@ async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     return result.model_copy(update={"duration_ms": elapsed_ms})
+
+
+def redirect_note(domain: str, final_url: str) -> str:
+    """A clause naming where a finding was actually measured, or nothing.
+
+    Sites redirect across domains -- hogeschoolutrecht.nl serves from hu.nl --
+    and following that is right, because it is what a visitor experiences. But
+    a summary reading "example.com is missing four headers" when a different
+    host was measured is not a claim we can stand behind, so the summary says
+    which host answered.
+    """
+    measured = httpx.URL(final_url).host
+    if not measured or measured == domain:
+        return ""
+    return f" Measured at {measured}, after a redirect."
 
 
 def error_result(check: Check, *, summary: str, detail: str) -> CheckResult:
