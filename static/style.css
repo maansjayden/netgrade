@@ -333,6 +333,22 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* Finding rows within a comparison column, colour-coded by check status.
+   The colour was previously an inline border-left with an interpolated custom
+   property, which the Content-Security-Policy blocks, so every row rendered
+   with no status colour at all. The fallback border keeps a row readable if a
+   status ever arrives without a matching class. */
+.compare-finding {
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border-left: 3px solid var(--border-color);
+}
+.compare-finding-pass { border-left-color: var(--color-pass); }
+.compare-finding-warn { border-left-color: var(--color-warn); }
+.compare-finding-fail { border-left-color: var(--color-fail); }
+.compare-finding-error { border-left-color: var(--color-error); }
+
 /* Grade Display Badge */
 .grade-badge {
   display: inline-flex;
