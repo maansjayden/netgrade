@@ -72,10 +72,10 @@ INFO netgrade.orchestrator: scanned mozilla.org in 9.76s: B (82), 7 of 7 checks 
 ---
 
 ### 2:50 – 3:15 | Testing, Deployment & Conclusion
-**Visual**: Terminal output showing `pytest -v` with 414 tests passing, or Docker setup.
+**Visual**: Terminal output showing `pytest -v` with 428 tests passing, or Docker setup.
 
 > **Mike**:  
-> "For project completion, Jayden built our Pytest suite which includes **414 passing unit and integration tests** covering scoring math, edge cases, and custom 404/500 error pages.  
+> "For project completion, Jayden built our Pytest suite which includes **428 passing unit and integration tests** covering scoring math, edge cases, and custom 404/500 error pages.  
 > 
 > Netgrade is live at `netgrade.certifa.net`, fully dockerized, and ready for use. Thank you!"
 
