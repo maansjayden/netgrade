@@ -21,7 +21,7 @@
   --color-info: #60a5fa;
 
   --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius: 12px;
+  --radius: 14px;
   --focus-ring: 0 0 0 3px #06b6d4, 0 0 0 5px rgba(6, 182, 212, 0.4);
 }
 
@@ -382,6 +382,13 @@ h1, h2, h3, h4, h5, h6 {
   gap: 1.5rem;
 }
 
+.audio-card {
+  margin-bottom: 2.5rem;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(59, 130, 246, 0.06));
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.75rem;
+}
 .audio-card-inner {
   display: flex;
   align-items: center;
@@ -389,10 +396,168 @@ h1, h2, h3, h4, h5, h6 {
   flex-wrap: wrap;
   gap: 1.25rem;
 }
+.audio-card-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.audio-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0b0f19;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+}
 .audio-card-actions {
   display: flex;
+  align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* Sleeker Buttons & Outlines */
+.btn-sleek {
+  padding: 0.65rem 1.25rem !important;
+  border-radius: 8px !important;
+  font-size: 0.925rem !important;
+  font-weight: 600 !important;
+  min-height: 42px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  line-height: 1.2 !important;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-outline:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* High-Contrast Competitor Link */
+.link-competitor {
+  color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  padding: 0.55rem 1.15rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.925rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+.link-competitor:hover {
+  background: rgba(6, 182, 212, 0.22);
+  border-color: var(--accent-cyan);
+  color: #ffffff;
+  transform: translateX(2px);
+  box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25);
+}
+.link-competitor:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Security Findings List & Card Typography */
+.findings-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.finding-card {
+  padding: 1.65rem;
+  border-radius: var(--radius);
+  border-left-width: 4px;
+}
+.finding-card-pass { border-left-color: var(--color-pass); }
+.finding-card-warn { border-left-color: var(--color-warn); }
+.finding-card-fail { border-left-color: var(--color-fail); }
+.finding-card-error { border-left-color: var(--color-error); }
+
+.finding-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.finding-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.finding-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.825rem;
+  color: #6b7280;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.finding-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.65rem;
+  line-height: 1.35;
+}
+.finding-summary {
+  font-weight: 600;
+  font-size: 1.025rem;
+  line-height: 1.6;
+  color: #f3f4f6;
+  margin-bottom: 0.5rem;
+}
+.finding-explanation {
+  color: #9ca3af;
+  font-size: 0.96rem;
+  line-height: 1.7;
+  margin-bottom: 1.25rem;
+}
+.finding-fix-box {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 1.15rem;
+}
+.finding-fix-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--accent-cyan);
+  margin-bottom: 0.35rem;
+}
+.finding-fix-text {
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--text-main);
 }
 
 /* Footer */
