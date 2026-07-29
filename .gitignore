@@ -5,13 +5,15 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+.coverage
 
 # Virtual environment
 .venv/
 venv/
 
-# Secrets. ELEVENLABS_API_KEY lives here, never in the repo.
+# Environment Variables & Secrets. ELEVENLABS_API_KEY lives here, never in the repo.
 .env
+*.env
 
 # Generated at runtime, not source. Audio briefings are cached per scan.
 static/audio_cache/
