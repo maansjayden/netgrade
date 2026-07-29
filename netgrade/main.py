@@ -10,7 +10,7 @@ load_dotenv()
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from netgrade.models import ScanResult, CheckResult
 from netgrade.audio import ElevenLabsAudioGenerator
 from netgrade.api import router as api_router
@@ -58,6 +58,40 @@ if os.path.exists(static_dir):
 
 templates = Jinja2Templates(directory=templates_dir if os.path.exists(templates_dir) else BASE_DIR)
 audio_gen = ElevenLabsAudioGenerator()
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
+    
+    if exc.status_code == 404:
+        title = "Domain Doesn't Exist"
+        message = exc.detail if exc.detail else "That domain doesn't exist. Check the spelling or enter a registered domain name."
+    elif exc.status_code == 400:
+        title = "Invalid Domain Name"
+        message = exc.detail if exc.detail else "Please enter a valid domain name (e.g. example.com)."
+    elif exc.status_code == 503:
+        title = "Service Unavailable"
+        message = exc.detail if exc.detail else "The scanner service is currently unavailable. Please try again later."
+    else:
+        title = f"Error {exc.status_code}"
+        message = str(exc.detail)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="error.html",
+        context={
+            "title": title,
+            "message": message,
+            "status_code": exc.status_code
+        },
+        status_code=exc.status_code
+    )
+
 
 # JSON contract routes under /api/v1. Schema is published at /docs.
 app.include_router(api_router)
@@ -114,6 +148,16 @@ async def health_check():
     return {"status": "ok", "service": "netgrade"}
 
 
+def _service(request: Request) -> ScanService:
+    service = getattr(request.app.state, "service", None)
+    if not isinstance(service, ScanService):
+        raise HTTPException(
+            status_code=503,
+            detail="Scan engine is not running.",
+        )
+    return service
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
     return templates.TemplateResponse(request, "index.html")
@@ -123,19 +167,12 @@ async def home_page(request: Request):
 async def scan_domain(request: Request, domain: str = "example.com", force: bool = False):
     clean_domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
     
-    # Only malformed input is an error here. A domain that cannot be reached
-    # still produces a report: the checks that could not run come back with
-    # status "error" inside it, and are excluded from the grade rather than
-    # counted as failures. Anything else raising is a defect in the engine and
-    # must be loud, rather than degrading into sample data a user would read
-    # as a real finding.
     try:
-        report = await request.app.state.service.scan(clean_domain, force=force)
+        service = _service(request)
+        report = await service.scan(clean_domain, force=force)
     except InvalidDomainError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except DomainNotFoundError as exc:
-        # A domain that does not exist is a typo, not a posture. Without this,
-        # the engine's refusal to report on one surfaces here as a 500.
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     audio_url = await audio_gen.get_or_generate_audio(
@@ -156,7 +193,8 @@ async def compare_domains(request: Request, domain1: str = None, domain2: str = 
         # score of 84 -- and rendered it as a scan result, which is the same
         # class of problem as the sample-data fallback removed from /scan.
         try:
-            report1, report2 = await request.app.state.service.compare(domain1, domain2)
+            service = _service(request)
+            report1, report2 = await service.compare(domain1, domain2)
         except InvalidDomainError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except DomainNotFoundError as exc:

@@ -112,7 +112,8 @@ class ScanContext:
         """Build a context with its own connection pool and resolver."""
         budget = timeouts or Timeouts()
 
-        resolver = dns.asyncresolver.Resolver()
+        resolver = dns.asyncresolver.Resolver(configure=True)
+        resolver.nameservers = ["1.1.1.1", "8.8.8.8", "1.0.0.1"]
         resolver.timeout = budget.dns
         resolver.lifetime = budget.dns
 
@@ -124,14 +125,9 @@ class ScanContext:
                 pool=budget.read,
             ),
             limits=httpx.Limits(max_connections=max_concurrency, max_keepalive_connections=8),
-            # Redirects are walked by hand in fetch() so each hop can be
-            # vetted; letting httpx follow them would send the request first.
             follow_redirects=False,
             headers={"User-Agent": _USER_AGENT},
-            # We are inspecting TLS, not trusting it. A certificate that fails
-            # verification is a finding for the TLS check to report, not a
-            # reason the header check cannot run.
-            verify=False,  # noqa: S501 - see docstring; this client never sends credentials
+            verify=False,  # noqa: S501
         )
         return cls(
             http=client,
@@ -146,7 +142,7 @@ class ScanContext:
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
-        exc: BaseException | None,
+        exc_val: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
         await self.aclose()
