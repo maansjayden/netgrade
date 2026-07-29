@@ -69,8 +69,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         )
     
     if exc.status_code == 404:
-        title = "Domain Doesn't Exist"
-        message = exc.detail if exc.detail else "That domain doesn't exist. Check the spelling or enter a registered domain name."
+        if exc.detail == "Not Found":
+            title = "Page Not Found (404)"
+            message = "The requested page or route does not exist. Check the URL or try scanning a domain."
+        else:
+            title = "Domain Doesn't Exist"
+            message = exc.detail
     elif exc.status_code == 400:
         title = "Invalid Domain Name"
         message = exc.detail if exc.detail else "Please enter a valid domain name (e.g. example.com)."
@@ -90,6 +94,26 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "status_code": exc.status_code
         },
         status_code=exc.status_code
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled exception on %s: %s", request.url.path, exc, exc_info=True)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error."}
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="error.html",
+        context={
+            "title": "Internal Server Error (500)",
+            "message": "An unexpected error occurred while executing the scan. Please try again in a few moments.",
+            "status_code": 500
+        },
+        status_code=500
     )
 
 

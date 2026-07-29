@@ -50,7 +50,7 @@
           <span>Listen Briefing</span>
         </button>
       {% endif %}
-      <a href="/scan?domain={{ report.domain }}&force=1" class="btn-primary" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none;">
+      <a href="/scan?domain={{ report.domain }}&force=1" id="rescan-btn" class="btn-primary js-rescan-btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none;">
         <span>Live Re-Scan</span>
       </a>
     </div>
