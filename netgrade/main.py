@@ -21,6 +21,16 @@ from netgrade.service import ScanService
 
 logger = logging.getLogger(__name__)
 
+# uvicorn configures its own loggers and leaves the root logger bare, so
+# without this every logger.info in the engine is dropped by lastResort,
+# which only emits WARNING and above. The scan pipeline logs its decisions
+# at INFO -- which CT source answered, when a scan was joined rather than
+# re-run -- and none of it was reaching the platform log.
+logging.basicConfig(
+    level=os.getenv("NETGRADE_LOG_LEVEL", "INFO").upper(),
+    format="%(levelname)s %(name)s: %(message)s",
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
