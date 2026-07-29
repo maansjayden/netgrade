@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from netgrade.models import ScanResult, CheckResult
 from netgrade.audio import ElevenLabsAudioGenerator
 from netgrade.api import router as api_router
+from netgrade.context import DomainNotFoundError
 from netgrade.domains import InvalidDomainError
 from netgrade.middleware import RateLimitMiddleware
 from netgrade.service import ScanService
@@ -132,6 +133,10 @@ async def scan_domain(request: Request, domain: str = "example.com", force: bool
         report = await request.app.state.service.scan(clean_domain, force=force)
     except InvalidDomainError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DomainNotFoundError as exc:
+        # A domain that does not exist is a typo, not a posture. Without this,
+        # the engine's refusal to report on one surfaces here as a 500.
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     audio_url = await audio_gen.get_or_generate_audio(
         report.domain, report.grade, report.score, report.checks
@@ -154,6 +159,8 @@ async def compare_domains(request: Request, domain1: str = None, domain2: str = 
             report1, report2 = await request.app.state.service.compare(domain1, domain2)
         except InvalidDomainError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except DomainNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return templates.TemplateResponse(request, "compare.html", {
         "domain1": domain1,
