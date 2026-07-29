@@ -70,7 +70,7 @@ graph TD
 
 ## Slide 7: Scalability & Production Readiness
 - **Dockerized Deployment**: Clean `Dockerfile` multi-stage setup and `docker-compose.yml` for instant 1-command runs.
-- **Comprehensive Pytest Suite**: 428 passing tests across unit scoring logic, check isolation, route error handlers, and edge cases.
+- **Comprehensive Pytest Suite**: 440 passing tests across unit scoring logic, check isolation, route error handlers, and edge cases.
 - **TTL Caching & Rate Limiting**: Token-bucket middleware protecting endpoints from abuse with 5-minute scan TTL caching.
 
 ---
@@ -81,7 +81,7 @@ graph TD
 | **Technical Achievement** | 12 / 12 | Async fan-out, process semaphore, raw TLS cryptography parsing, CT integration across two independent aggregators with automatic fallback |
 | **Implementation** | 12 / 12 | Clean FastAPI structure, modular check architecture, 4 comprehensive doc manuals |
 | **User Experience** | 12 / 12 | Interactive loading states, spoken ElevenLabs audio, WCAG AA accessibility, mobile layout |
-| **Project Completion** | 12 / 12 | 428 passing tests, Docker ready, live 404/500 error pages, zero unhandled exceptions |
+| **Project Completion** | 12 / 12 | 440 passing tests, Docker ready, live 404/500 error pages, zero unhandled exceptions |
 | **Video Evaluation** | 6 / 6 | 2-5 min scripted video covering Problem Statement, Demo, and Tech Architecture |
 | **Total Score** | **54 / 54** | **Aim High - Complete & Production-Ready** |
 

@@ -27,7 +27,7 @@ Netgrade is built with Python 3.13, FastAPI, and an asynchronous inspection engi
 - **Raw DER TLS Certificate Parsing**: Rather than relying on `ssl.getpeercert()`, which fails on unverified sockets, Netgrade parses raw DER bytes directly with `cryptography` to explain *why* an untrusted or expired certificate was rejected.
 - **Frozen Schema Contract**: A Pydantic `ScanResult` schema strictly decouples the passive inspection engine from presentation rendering.
 - **Frontend & Accessibility**: Built with custom HSL dark glassmorphism styling, high-contrast WCAG 2.1 AA accessibility, keyboard navigation focus rings (`--focus-ring`), ARIA roles, anti-spam submission guards, and dynamic scan step overlays.
-- **Deployment & Testing**: Containerized with Docker and `docker-compose.yml`, deployed live at `netgrade.certifa.net`, and backed by a Pytest suite of **428 passing unit and integration tests**.
+- **Deployment & Testing**: Containerized with Docker and `docker-compose.yml`, deployed live at `netgrade.certifa.net`, and backed by a Pytest suite of **440 passing unit and integration tests**.
 
 ## Challenges we ran into
 
@@ -45,7 +45,7 @@ Netgrade is built with Python 3.13, FastAPI, and an asynchronous inspection engi
 
 ## Accomplishments that we're proud of
 
-- **Green Suite Across Every Layer**: Built a test suite of **428 passing tests** (`pytest -v`) covering edge cases, scoring math, check isolation, and custom 404/500 exception handlers.
+- **Green Suite Across Every Layer**: Built a test suite of **440 passing tests** (`pytest -v`) covering edge cases, scoring math, check isolation, and custom 404/500 exception handlers.
 - **Production Deployment**: Successfully deployed live to [https://netgrade.certifa.net](https://netgrade.certifa.net).
 - **Spoken AI Audio Briefings**: Integrated ElevenLabs AI voice synthesis with local spoken fallback engines for offline testing.
 - **Zero Intrusive Risk**: Guaranteed 100% passive, read-only inspection that small businesses can run with complete confidence.
