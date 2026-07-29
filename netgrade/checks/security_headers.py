@@ -46,6 +46,63 @@ _FRIENDLY_NAMES: Final = {
 
 _SEVERITY_ORDER: Final = ("info", "low", "medium", "high", "critical")
 
+#: The two ways inline script can run, each as the chain of directives that
+#: governs it from most to least specific. A browser consults the first one
+#: present and ignores the rest, so the chain is a lookup order rather than a
+#: set to search.
+_SCRIPT_DIRECTIVE_CHAINS: Final = (
+    ("script-src-attr", "script-src", "default-src"),  # inline event handlers
+    ("script-src-elem", "script-src", "default-src"),  # inline <script> blocks
+)
+
+#: A nonce or hash in the same directive makes browsers ignore 'unsafe-inline'
+#: entirely. Prefixes rather than exact values, since the payload varies.
+_NONCE_OR_HASH: Final = ("'nonce-", "'sha256-", "'sha384-", "'sha512-")
+
+
+def _parse_csp(csp: str) -> dict[str, tuple[str, ...]]:
+    """Split a policy into directive name -> source list.
+
+    First occurrence wins, because a browser ignores a repeated directive
+    within one policy rather than merging or replacing it.
+    """
+    directives: dict[str, tuple[str, ...]] = {}
+    for part in csp.split(";"):
+        tokens = part.split()
+        if tokens and tokens[0] not in directives:
+            directives[tokens[0]] = tuple(tokens[1:])
+    return directives
+
+
+def _allows_inline_scripts(csp: str) -> bool:
+    """Whether the policy genuinely lets inline script execute.
+
+    Deliberately not a substring search for "unsafe-inline", which is what this
+    was and which was wrong twice over. It reported a site with a strict
+    script-src but a relaxed style-src as allowing unsafe-inline *scripts*,
+    which is untrue and is the kind of confidently wrong finding this tool
+    exists to avoid. It also ignored that a nonce or hash alongside
+    'unsafe-inline' causes browsers to drop 'unsafe-inline' entirely, so the
+    strictest real-world policies were reported as the weakest.
+    """
+    directives = _parse_csp(csp)
+    return any(_chain_allows_inline(directives, chain) for chain in _SCRIPT_DIRECTIVE_CHAINS)
+
+
+def _chain_allows_inline(directives: dict[str, tuple[str, ...]], chain: tuple[str, ...]) -> bool:
+    """Resolve one directive chain and report whether it permits inline script."""
+    for name in chain:
+        sources = directives.get(name)
+        if sources is None:
+            continue
+        if "'unsafe-inline'" not in sources:
+            return False
+        return not any(source.startswith(_NONCE_OR_HASH) for source in sources)
+    # No directive in the chain and no default-src: nothing restricts scripts,
+    # but that is a missing policy rather than a permissive one, and the
+    # missing-header path already covers it.
+    return False
+
 
 @dataclass(frozen=True, slots=True)
 class _Assessment:
@@ -120,7 +177,7 @@ def _assess_headers(response: HttpResult) -> _Assessment:
     if not csp and response.headers.get("content-security-policy-report-only"):
         weaknesses.append("Content-Security-Policy is in report-only mode and blocks nothing")
 
-    if "unsafe-inline" in csp:
+    if _allows_inline_scripts(csp):
         weaknesses.append("the Content-Security-Policy allows unsafe-inline scripts")
 
     return _Assessment(missing=tuple(missing), weaknesses=tuple(weaknesses))
