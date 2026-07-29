@@ -142,10 +142,14 @@ async def compare_domains(request: Request, domain1: str = None, domain2: str = 
     report1 = None
     report2 = None
     if domain1 and domain2:
-        report1 = load_mock_scan(domain1)
-        report2 = load_mock_scan(domain2)
-        report2.score = 84
-        report2.grade = "B"
+        # Both scanned concurrently against one shared connection pool. Until
+        # now this route invented the second domain's posture -- a hardcoded
+        # score of 84 -- and rendered it as a scan result, which is the same
+        # class of problem as the sample-data fallback removed from /scan.
+        try:
+            report1, report2 = await request.app.state.service.compare(domain1, domain2)
+        except InvalidDomainError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return templates.TemplateResponse(request, "compare.html", {
         "domain1": domain1,
