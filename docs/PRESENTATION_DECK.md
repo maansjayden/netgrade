@@ -34,7 +34,7 @@ graph TD
     A[Web Client / User] -->|GET /scan?domain=example.com| B[FastAPI Web Server]
     B -->|Async Fan-out| C[Scanner Orchestrator]
     
-    subgraph Passive Engine Pool (Bounded Semaphore)
+    subgraph "Passive Engine Pool (Bounded Semaphore)"
         C --> D1[1. Email Spoofing - SPF/DMARC]
         C --> D2[2. TLS/SSL Configuration]
         C --> D3[3. Security Headers - HSTS/CSP]
