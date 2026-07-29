@@ -46,6 +46,12 @@ class ScanService:
         #: be scanned at all, which is the half that actually matters.
         self._inflight: dict[str, asyncio.Task[ScanResult]] = {}
 
+        #: How many callers are currently waiting on each in-flight scan. Only
+        #: consulted by ``compare``, which needs to distinguish a scan nobody is
+        #: waiting for from one another request has joined -- cancelling the
+        #: latter would hand that request a cancellation instead of a report.
+        self._waiting: dict[str, int] = {}
+
     @classmethod
     def open(cls) -> Self:
         """Build a service with its own pool, resolver and cache."""
@@ -96,7 +102,7 @@ class ScanService:
             running = self._inflight.get(normalised)
             if running is not None:
                 logger.info("joining the scan of %s already in progress", normalised)
-                return await self._join(running)
+                return await self._join(normalised, running)
 
         return await self._start(normalised)
 
@@ -105,7 +111,7 @@ class ScanService:
         task = asyncio.create_task(self._scan_and_store(domain), name=f"scan:{domain}")
         self._inflight[domain] = task
         try:
-            return await self._join(task)
+            return await self._join(domain, task)
         finally:
             # Only if it is still ours. A forced re-scan starting meanwhile
             # replaces the entry, and removing that one would leave its own
@@ -113,8 +119,7 @@ class ScanService:
             if self._inflight.get(domain) is task:
                 del self._inflight[domain]
 
-    @staticmethod
-    async def _join(task: asyncio.Task[ScanResult]) -> ScanResult:
+    async def _join(self, domain: str, task: asyncio.Task[ScanResult]) -> ScanResult:
         """Await a scan without being able to kill it.
 
         Shielded because a plain ``await`` on a task propagates cancellation
@@ -127,9 +132,20 @@ class ScanService:
         The copy matters for the same reason the cache returns one: callers
         mutate what they are given -- the audio layer assigns onto it -- and
         joiners would otherwise all hold the same object.
+
+        The waiter count exists only so ``compare`` can tell the difference
+        between a scan nobody is waiting for and one that somebody else joined.
         """
-        result = await asyncio.shield(task)
-        return result.model_copy()
+        self._waiting[domain] = self._waiting.get(domain, 0) + 1
+        try:
+            result = await asyncio.shield(task)
+            return result.model_copy()
+        finally:
+            remaining = self._waiting[domain] - 1
+            if remaining:
+                self._waiting[domain] = remaining
+            else:
+                del self._waiting[domain]
 
     async def _scan_and_store(self, domain: str) -> ScanResult:
         """The scan itself, plus remembering it."""
@@ -166,7 +182,50 @@ class ScanService:
             only = await self.scan(left, force=force)
             return only, only
 
-        return await asyncio.gather(
-            self.scan(left, force=force),
-            self.scan(right, force=force),
+        left_scan = asyncio.create_task(self.scan(left, force=force), name=f"compare:{left}")
+        right_scan = asyncio.create_task(self.scan(right, force=force), name=f"compare:{right}")
+
+        # FIRST_EXCEPTION rather than gather, so a typo in one box stops the
+        # other scan instead of leaving it to run for a response nobody will
+        # read. gather propagates the first error without touching its sibling.
+        done, pending = await asyncio.wait(
+            (left_scan, right_scan), return_when=asyncio.FIRST_EXCEPTION
         )
+        for wrapper in pending:
+            domain = left if wrapper is left_scan else right
+
+            # The scan itself, not just our wait on it. _join shields the task
+            # precisely so a departing caller cannot kill a scan others may be
+            # joined to, which means cancelling the wrapper alone leaves the
+            # scan running to completion -- measured, not assumed. Reached here
+            # before the wrapper is cancelled, because _start's cleanup removes
+            # the registry entry as it unwinds.
+            #
+            # Skipped when anyone else is waiting: a count above our own single
+            # wait means another request joined this scan and is owed its
+            # report. And skipped entirely for a caller who simply goes away --
+            # a scan already paid for still warms the cache for whoever asks
+            # next. This is narrower: the sibling of a comparison that has
+            # already failed, whose result was never going to be read.
+            running = self._inflight.get(domain)
+            if running is not None and not running.done() and self._waiting.get(domain, 0) <= 1:
+                logger.info("stopping the scan of %s: the comparison it belonged to failed", domain)
+                running.cancel()
+
+            wrapper.cancel()
+
+        if pending:
+            # Awaited so the cancellations have actually landed before we
+            # return, rather than being finalised at some later point.
+            await asyncio.wait(pending)
+
+        for task in done:
+            error = task.exception()
+            if error is not None:
+                # Re-raised as itself, not wrapped: the routes distinguish
+                # InvalidDomainError and DomainNotFoundError to choose 400 or
+                # 404, and a TaskGroup's ExceptionGroup would defeat both and
+                # surface as a 500.
+                raise error
+
+        return left_scan.result(), right_scan.result()

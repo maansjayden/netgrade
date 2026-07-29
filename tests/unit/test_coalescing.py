@@ -55,6 +55,40 @@ class RecordingService(ScanService):
         return result
 
 
+class FailingDomainService(ScanService):
+    """A service where "nope.com" does not exist and everything else is slow.
+
+    Scripted at ``_scan_and_store`` rather than at ``scan``, so the cache
+    lookup, the in-flight join and the cleanup are all the real code -- and so
+    the failure arrives from inside the scan, which is where
+    DomainNotFoundError is actually raised in production.
+    """
+
+    def __init__(self, *, delay: float = 0.2) -> None:
+        super().__init__(ctx=None, cache=TTLScanCache())  # type: ignore[arg-type]
+        self._delay = delay
+        self.started: list[str] = []
+        self.completed: list[str] = []
+        self.cancelled: list[str] = []
+        self.began = asyncio.Event()
+
+    async def _scan_and_store(self, domain: str) -> ScanResult:
+        if domain == "nope.com":
+            raise DomainNotFoundError("nope.com does not exist.")
+
+        self.started.append(domain)
+        self.began.set()
+        try:
+            await asyncio.sleep(self._delay)
+        except asyncio.CancelledError:
+            self.cancelled.append(domain)
+            raise
+        self.completed.append(domain)
+        result = a_result(domain)
+        self._cache.set(domain, result)
+        return result
+
+
 class TestConcurrentRequestsShareOneScan:
     async def test_ten_callers_produce_one_scan(self) -> None:
         service = RecordingService()
@@ -162,6 +196,57 @@ class TestTheFirstCallerLeaving:
 
         await asyncio.sleep(0.2)
         assert service._cache.get("example.com") is not None
+
+
+class TestAFailedComparisonStopsItsSibling:
+    """A typo in one box must not cost a stranger a scan they never asked for.
+
+    compare used to gather both sides, and gather propagates the first error
+    without touching its sibling -- so a 404 was returned while the other
+    domain was still being scanned to completion, generating traffic to a third
+    party for a response nobody would read.
+
+    Cancelling the wrapper is not enough and these tests would pass if it were:
+    _join shields the scan, so the scan survives its waiter. The cancellation
+    has to reach the task itself.
+    """
+
+    async def test_the_sibling_scan_is_cancelled(self) -> None:
+        service = FailingDomainService(delay=0.2)
+
+        with pytest.raises(DomainNotFoundError):
+            await service.compare("nope.com", "example.com")
+
+        await asyncio.sleep(0.4)
+        assert service.cancelled == ["example.com"]
+        assert service.completed == [], "the sibling ran to completion anyway"
+
+    async def test_a_scan_somebody_else_joined_is_left_alone(self) -> None:
+        """The safety property. Another request is owed its report, and
+        cancelling a shared scan would hand it a cancellation instead."""
+        service = FailingDomainService(delay=0.2)
+
+        joiner = asyncio.create_task(service.scan("example.com"))
+        await service.began.wait()
+        await asyncio.sleep(0)
+
+        with pytest.raises(DomainNotFoundError):
+            await service.compare("nope.com", "example.com")
+
+        report = await joiner
+        assert service.started == ["example.com"], "the joiner did not actually join"
+        assert service.cancelled == []
+        assert report.grade == "B"
+
+    async def test_the_registry_is_clean_afterwards(self) -> None:
+        service = FailingDomainService(delay=0.05)
+
+        with pytest.raises(DomainNotFoundError):
+            await service.compare("nope.com", "example.com")
+
+        await asyncio.sleep(0.2)
+        assert service._inflight == {}
+        assert service._waiting == {}
 
 
 class TestForcedRescan:
