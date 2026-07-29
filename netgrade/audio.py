@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import hashlib
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 #: every briefing was 504 bytes of nothing behind a working play button. Flash
 #: is the fastest current model and the briefing text is English.
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"
+
+#: Below this, a file on disk is a failed or truncated synthesis rather than a
+#: briefing, so it is neither served nor treated as a cache hit.
+MIN_AUDIO_BYTES = 5000
 
 
 def _load_dotenv():
@@ -57,8 +62,32 @@ class ElevenLabsAudioGenerator:
             f"Focus on resolving your highest severity issue first."
         )
 
+    def _cached_url(self, filepath: str, wav_path: str, filename: str) -> str | None:
+        """Return the URL of an already-synthesised briefing, if there is one.
+
+        Blocking: stats the filesystem, so it is called in a worker thread.
+        """
+        if os.path.exists(wav_path) and os.path.getsize(wav_path) > MIN_AUDIO_BYTES:
+            return f"/static/audio_cache/{os.path.basename(wav_path)}"
+        if os.path.exists(filepath) and os.path.getsize(filepath) > MIN_AUDIO_BYTES:
+            return f"/static/audio_cache/{filename}"
+        return None
+
+    @staticmethod
+    def _write_bytes(filepath: str, payload: bytes) -> None:
+        """Write a synthesised briefing to disk. Blocking; called in a thread."""
+        with open(filepath, "wb") as handle:
+            handle.write(payload)
+
     def _generate_fallback_audio(self, filepath: str, text: str) -> str | None:
-        """Synthesizes real spoken audio locally via SAPI or sample briefing wav when ElevenLabs API key is absent."""
+        """Synthesise a briefing locally when ElevenLabs cannot be used.
+
+        Entirely blocking -- a subprocess with a six-second timeout, a file copy
+        and filesystem stats -- so it must be called in a worker thread and
+        never awaited directly. Run on the event loop it would stall every other
+        request in the process for as long as it takes, which on a machine that
+        has powershell is up to six seconds per briefing.
+        """
         wav_path = filepath.rsplit(".", 1)[0] + ".wav"
         
         # 1. Try local Windows Speech Synthesizer for dynamic spoken audio
@@ -73,7 +102,7 @@ class ElevenLabsAudioGenerator:
                 f"$s.Dispose()"
             )
             subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], timeout=6, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if os.path.exists(wav_path) and os.path.getsize(wav_path) > 5000:
+            if os.path.exists(wav_path) and os.path.getsize(wav_path) > MIN_AUDIO_BYTES:
                 return f"/static/audio_cache/{os.path.basename(wav_path)}"
         except Exception:
             pass
@@ -100,11 +129,13 @@ class ElevenLabsAudioGenerator:
         filepath = os.path.join(self.cache_dir, filename)
         wav_path = os.path.join(self.cache_dir, f"briefing_{domain}_{text_hash[:10]}.wav")
 
-        # Return cached audio URL if present
-        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 5000:
-            return f"/static/audio_cache/{os.path.basename(wav_path)}"
-        if os.path.exists(filepath) and os.path.getsize(filepath) > 5000:
-            return f"/static/audio_cache/{filename}"
+        # Return cached audio URL if present. In a thread with the rest of the
+        # filesystem work: individually these stats are microseconds, but
+        # keeping every blocking call in this method on the same side of the
+        # loop is what makes the rule easy to follow when it is edited later.
+        cached = await asyncio.to_thread(self._cached_url, filepath, wav_path, filename)
+        if cached is not None:
+            return cached
 
         # If ElevenLabs API Key is present, invoke API
         if self.api_key:
@@ -123,8 +154,9 @@ class ElevenLabsAudioGenerator:
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.post(url, json=data, headers=headers)
                     if res.status_code == 200 and len(res.content) > 1000:
-                        with open(filepath, "wb") as f:
-                            f.write(res.content)
+                        # Half a megabyte of mp3. Small, but there is no reason
+                        # to hold the loop for it while it reaches the disk.
+                        await asyncio.to_thread(self._write_bytes, filepath, res.content)
                         logger.info(
                             "synthesised briefing for %s: %d bytes via %s",
                             domain, len(res.content), self.model_id,
@@ -142,5 +174,10 @@ class ElevenLabsAudioGenerator:
         else:
             logger.error("ELEVENLABS_API_KEY is not set; no briefing can be synthesised")
 
-        # Synthesize real spoken audio fallback for local offline testing
-        return self._generate_fallback_audio(filepath, text)
+        # The local fallback, in a thread. This is the one that mattered: it
+        # shells out with a six-second timeout, and awaited directly it would
+        # hold the event loop for that whole time, stalling every other request
+        # in the process. On Linux the executable is absent so it fails at once,
+        # which is why the deployed instance never showed it -- the stall was
+        # waiting for anyone who ran this where powershell exists.
+        return await asyncio.to_thread(self._generate_fallback_audio, filepath, text)
