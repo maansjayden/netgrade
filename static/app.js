@@ -24,6 +24,14 @@ function toggleAudio() {
 document.addEventListener('DOMContentLoaded', () => {
   const audio = document.getElementById('audio-player');
   if (audio) {
+    // Bound here rather than with onclick= in the template. The edge sends
+    // Content-Security-Policy: default-src 'self', which blocks inline event
+    // handlers, so the button did nothing. Binding externally means the strict
+    // policy stays as it is -- and our own security_headers check penalises
+    // unsafe-inline, so loosening it would make us fail our own scan.
+    const playBtn = document.getElementById('play-audio-btn');
+    if (playBtn) playBtn.addEventListener('click', toggleAudio);
+
     audio.addEventListener('ended', () => {
       const btn = document.getElementById('play-audio-btn');
       if (btn) btn.querySelector('span').textContent = 'Listen Briefing';
