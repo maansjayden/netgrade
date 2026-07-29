@@ -16,8 +16,19 @@
   <header class="navbar" role="banner">
     <div class="nav-container">
       <a href="/" class="logo" aria-label="Netgrade Home">
-        <span class="logo-icon" aria-hidden="true"></span>
-        <span>Netgrade</span>
+        <div class="logo-icon-wrapper" aria-hidden="true">
+          <svg class="logo-svg" width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="logo-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#06b6d4" />
+                <stop offset="100%" stop-color="#3b82f6" />
+              </linearGradient>
+            </defs>
+            <path d="M16 3L5 7V15C5 21.8 10 27.5 16 29C22 27.5 27 21.8 27 15V7L16 3Z" fill="url(#logo-grad)" fill-opacity="0.2" stroke="url(#logo-grad)" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M10 16.5L14 20.5L22 11" stroke="#38bdf8" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="logo-text">Netgrade</span>
       </a>
       <nav aria-label="Primary Navigation">
         <ul class="nav-links">
