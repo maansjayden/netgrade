@@ -82,31 +82,37 @@ implementations should fail open — a Redis outage should degrade to "no cache,
 no limit" rather than to "no service", because a scanner that stops working
 when its cache is unavailable is worse than one that briefly scans too much.
 
-### 2. Fifty people scanning the same domain run fifty scans
+### 2. Fifty people scanning the same domain ran fifty scans — fixed
 
-The cache only helps after the first scan finishes. Under any burst of interest
-in one domain — the exact shape of traffic a demo, a link on social media or a
-CI integration produces — concurrent requests all miss, all scan, and all hit
-the target host simultaneously. That is both wasteful and the least considerate
-thing this tool can do to somebody's server.
+The cache only helps once a scan has finished. Under a burst of interest in
+one domain — the exact shape of traffic a demo, a shared link or a CI
+integration produces — concurrent requests all missed, all scanned, and all
+hit the target host simultaneously. Wasteful for us, and inconsiderate to a
+server that did not ask to be scanned at all.
 
-**The fix.** Single-flight coalescing: an in-flight map of domain to `Future`,
-so the second and subsequent requests for a cold domain await the first one's
-result instead of starting their own.
+**Now coalesced.** A map of domain to in-flight task lets concurrent callers
+for the same domain await the scan already running instead of starting their
+own. Measured against the real engine: twelve concurrent requests for one cold
+domain now run **one** scan instead of twelve, saving roughly 165 outbound
+requests to somebody else's server, with every caller still receiving a
+complete report.
 
-```python
-async def scan(self, domain, *, force=False):
-    if (existing := self._inflight.get(domain)) is not None:
-        return await existing            # someone is already scanning it
-    ...
-```
+Three details it needed beyond the obvious dictionary.
 
-About fifteen lines in `service.py`, no contract change, and it is the highest
-value-per-line item on this list. Deliberately not built: it is arguably inside
-"per-domain caching" and arguably a new feature, and it was left as a decision
-rather than assumed.
+The join is shielded. A plain `await` on a task propagates cancellation into
+it, so whoever asked first would take the scan down with them by closing the
+tab, and everyone waiting on it would get a cancellation instead of a report.
+Shielded, the scan finishes and warms the cache regardless of who is still
+listening, bounded by the scan deadline rather than by any request.
 
-Across instances it needs a Redis lock, at which point the second requester
+A forced re-scan does not join. The point of forcing is to measure again, not
+to await a measurement that may have started before the user made the change
+they are re-scanning to see.
+
+Each caller gets a copy. The audio layer assigns onto the report it is handed,
+and joiners would otherwise all hold the same object.
+
+Across instances this needs a Redis lock, at which point the second requester
 either waits on a pub/sub notification or polls the cache key. Within one
 instance the local version is exact and free.
 
@@ -204,7 +210,7 @@ deciding deliberately rather than arriving at by adding a table.
 |---|---|---|---|
 | Rate limiting | In process | Redis + Lua, atomic | Second instance |
 | Result cache | In process, 512 / 5 min | Redis, shared | Second instance |
-| Duplicate scans | None | Single-flight, ~15 lines | Any concurrent burst |
+| Duplicate scans | Coalesced in process | Redis lock for cross-instance | Second instance |
 | Long requests | Synchronous | Submit-and-poll + workers | p99 nears request timeout |
 | Outbound sockets | 24, process-wide | Horizontal, after shared limiter | Sustained queueing |
 | crt.sh | Live, degrades to `error` | Long cache, then background feed | Availability complaints |

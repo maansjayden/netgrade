@@ -38,6 +38,14 @@ class ScanService:
         self._ctx = ctx
         self._cache = cache
 
+        #: Scans currently running, by domain. The cache only helps once a
+        #: scan has finished, so without this a burst of interest in one
+        #: domain -- a shared link, a demo, several people at once -- misses
+        #: the cache every time and hits the target host once per request.
+        #: Wasteful for us and inconsiderate to a server that did not ask to
+        #: be scanned at all, which is the half that actually matters.
+        self._inflight: dict[str, asyncio.Task[ScanResult]] = {}
+
     @classmethod
     def open(cls) -> Self:
         """Build a service with its own pool, resolver and cache."""
@@ -85,8 +93,48 @@ class ScanService:
             if cached is not None:
                 return cached
 
-        result = await scan(normalised, self._ctx)
-        self._cache.set(normalised, result)
+            running = self._inflight.get(normalised)
+            if running is not None:
+                logger.info("joining the scan of %s already in progress", normalised)
+                return await self._join(running)
+
+        return await self._start(normalised)
+
+    async def _start(self, domain: str) -> ScanResult:
+        """Run a scan, letting concurrent callers for the same domain join it."""
+        task = asyncio.create_task(self._scan_and_store(domain), name=f"scan:{domain}")
+        self._inflight[domain] = task
+        try:
+            return await self._join(task)
+        finally:
+            # Only if it is still ours. A forced re-scan starting meanwhile
+            # replaces the entry, and removing that one would leave its own
+            # joiners unable to find it.
+            if self._inflight.get(domain) is task:
+                del self._inflight[domain]
+
+    @staticmethod
+    async def _join(task: asyncio.Task[ScanResult]) -> ScanResult:
+        """Await a scan without being able to kill it.
+
+        Shielded because a plain ``await`` on a task propagates cancellation
+        into it: whoever asked first would take the scan down with them by
+        closing the tab, and every caller waiting on the same one would get a
+        cancellation instead of the report they asked for. Shielded, the scan
+        finishes and populates the cache regardless of who is still listening,
+        and it is bounded by the scan deadline rather than by the request.
+
+        The copy matters for the same reason the cache returns one: callers
+        mutate what they are given -- the audio layer assigns onto it -- and
+        joiners would otherwise all hold the same object.
+        """
+        result = await asyncio.shield(task)
+        return result.model_copy()
+
+    async def _scan_and_store(self, domain: str) -> ScanResult:
+        """The scan itself, plus remembering it."""
+        result = await scan(domain, self._ctx)
+        self._cache.set(domain, result)
         return result
 
     async def compare(

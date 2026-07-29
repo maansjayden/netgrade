@@ -236,5 +236,6 @@ marketing.
    is not the advertised one. Affects any header choice equally.
 3. **Single-instance state.** Rate limits and cache are per process; two
    instances mean two independent limits.
-4. **No request coalescing.** Fifty simultaneous requests for the same cold
-   domain run fifty scans. The cache helps only after the first completes.
+4. **Coalescing is per process.** Concurrent requests for one cold domain now
+   share a single scan, but only within one instance. Two instances mean two
+   scans of the same domain at the same moment.
