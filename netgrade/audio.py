@@ -46,14 +46,50 @@ class ElevenLabsAudioGenerator:
             f"Focus on resolving your highest severity issue first."
         )
 
+    def _generate_fallback_audio(self, filepath: str, text: str) -> str:
+        """Synthesizes real spoken audio locally via SAPI or sample briefing wav when ElevenLabs API key is absent."""
+        wav_path = filepath.rsplit(".", 1)[0] + ".wav"
+        
+        # 1. Try local Windows Speech Synthesizer for dynamic spoken audio
+        try:
+            import subprocess
+            clean_text = text.replace("'", "").replace('"', "")
+            ps_cmd = (
+                f"Add-Type -AssemblyName System.Speech; "
+                f"$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+                f"$s.SetOutputToWaveFile('{wav_path}'); "
+                f"$s.Speak('{clean_text}'); "
+                f"$s.Dispose()"
+            )
+            subprocess.run(["powershell", "-NoProfile", "-Command", ps_cmd], timeout=6, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if os.path.exists(wav_path) and os.path.getsize(wav_path) > 5000:
+                return f"/static/audio_cache/{os.path.basename(wav_path)}"
+        except Exception:
+            pass
+
+        # 2. Fallback to pre-synthesized sample briefing wav
+        sample_wav = os.path.join(self.cache_dir, "sample_briefing.wav")
+        if os.path.exists(sample_wav):
+            import shutil
+            shutil.copy(sample_wav, wav_path)
+            return f"/static/audio_cache/{os.path.basename(wav_path)}"
+
+        # 3. Minimal silent fallback if all else fails
+        with open(filepath, "wb") as f:
+            f.write(b'\xff\xf3\x44\xc4' + b'\x00' * 500)
+        return f"/static/audio_cache/{os.path.basename(filepath)}"
+
     async def get_or_generate_audio(self, domain: str, grade: str, score: int, checks: List[CheckResult]) -> str:
         text = self._build_briefing_text(domain, grade, score, checks)
         text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
         filename = f"briefing_{domain}_{text_hash[:10]}.mp3"
         filepath = os.path.join(self.cache_dir, filename)
+        wav_path = os.path.join(self.cache_dir, f"briefing_{domain}_{text_hash[:10]}.wav")
 
         # Return cached audio URL if present
-        if os.path.exists(filepath):
+        if os.path.exists(wav_path) and os.path.getsize(wav_path) > 5000:
+            return f"/static/audio_cache/{os.path.basename(wav_path)}"
+        if os.path.exists(filepath) and os.path.getsize(filepath) > 5000:
             return f"/static/audio_cache/{filename}"
 
         # If ElevenLabs API Key is present, invoke API
@@ -72,16 +108,12 @@ class ElevenLabsAudioGenerator:
                 }
                 async with httpx.AsyncClient(timeout=10.0) as client:
                     res = await client.post(url, json=data, headers=headers)
-                    if res.status_code == 200:
+                    if res.status_code == 200 and len(res.content) > 1000:
                         with open(filepath, "wb") as f:
                             f.write(res.content)
                         return f"/static/audio_cache/{filename}"
             except Exception:
                 pass
 
-        # Fallback: create silent/demo mp3 file fixture if offline
-        with open(filepath, "wb") as f:
-            # Minimal MP3 frame header representation
-            f.write(b'\xff\xf3\x44\xc4' + b'\x00' * 500)
-
-        return f"/static/audio_cache/{filename}"
+        # Synthesize real spoken audio fallback for local offline testing
+        return self._generate_fallback_audio(filepath, text)
