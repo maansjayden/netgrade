@@ -50,12 +50,23 @@
 ### 2:00 – 2:50 | Technical Stack & Architecture Deep-Dive
 **Visual**: Switch to architecture diagram or terminal code view.
 
+**Visual cue for principle 2** — cut to `railway logs` while saying the failover
+line. This is real output, not a mockup, and it shows the failover and the
+"7 of 7" in two lines:
+
+```
+INFO netgrade.checks.cert_history: crt.sh unavailable (ReadTimeout); trying the next source
+INFO netgrade.orchestrator: scanned mozilla.org in 9.76s: B (82), 7 of 7 checks completed
+```
+
 > **Mike**:  
 > "Under the hood, Netgrade is built in Python with **FastAPI** and an async inspection engine.  
 > 
 > Here are 3 key architectural principles we enforced:
-> 1. **Passive Security Only**: Zero active exploitation, zero credential testing, zero payload injection. We inspect public DNS, TLS handshakes, security headers, cookie flags, exposed files like `.git` and `.env`, and Certificate Transparency logs via crt.sh.
+> 1. **Passive Security Only**: Zero active exploitation, zero credential testing, zero payload injection. We inspect public DNS, TLS handshakes, security headers, cookie flags, exposed files like `.git` and `.env`, and Certificate Transparency logs via two independent aggregators — crt.sh, with Cert Spotter as automatic fallback.
 > 2. **Errors Are Excluded, Not Failed**: If DNS times out or a third-party service is down, we mark the check as `error` and exclude it from the score rather than penalizing the domain with an F grade.
+> 
+>    And we didn't just design for that on paper. We wrote down early that crt.sh was a single point of failure we didn't control — then it went down mid-build and stayed down. That's why there are two aggregators. This is from production today: crt.sh times out, Cert Spotter answers, and the scan still completes all seven checks.
 > 3. **Concurrency Semaphore & Caching**: Scan tasks execute concurrently with `asyncio.wait`. Sockets are bounded by a process-wide semaphore (24 max) and protected by token-bucket rate limiting and 5-minute TTL caching."
 
 ---

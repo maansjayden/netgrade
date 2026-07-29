@@ -5,7 +5,7 @@
 | :--- | :---: | :---: | :--- |
 | **Technical Achievement** | **12** | **12 / 12** | |
 | *Innovation & Creativity* | 4 | 4 | Spoken ElevenLabs AI audio briefing, side-by-side competitor benchmarking, "errors are excluded not failed" scoring methodology. |
-| *Technical Complexity* | 4 | 4 | Async fan-out (`asyncio.wait`), process-wide 24-socket semaphore, raw DER TLS certificate parsing via `cryptography`, CT log parsing via crt.sh. |
+| *Technical Complexity* | 4 | 4 | Async fan-out (`asyncio.wait`), process-wide 24-socket semaphore, raw DER TLS certificate parsing via `cryptography`, CT log parsing via two independent aggregators (crt.sh, with Cert Spotter as automatic fallback). |
 | *Scalability* | 4 | 4 | Global connection pooling, token-bucket rate limiting middleware, 5-min TTL scan result caching, process-wide socket safety. |
 | **Implementation** | **12** | **12 / 12** | |
 | *Code Quality* | 4 | 4 | Modular `netgrade/checks/` architecture, strict type hints, frozen Pydantic `ScanResult` schema contract, clean separation of concerns. |

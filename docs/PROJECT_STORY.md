@@ -14,7 +14,7 @@ Netgrade audits any public domain across **7 key passive security controls** wit
 4. **Session Cookie Flags**: Verifies Secure, HttpOnly, and SameSite flags on session tokens to prevent XSS hijacking.
 5. **Exposed Artefacts**: Audits known sensitive paths (such as `.git`, `.env`, `.DS_Store`) that leak credentials.
 6. **DNS Hygiene & NS Spread**: Checks nameserver redundancy and zone transfer exposure to prevent single points of outage failure.
-7. **Certificate Transparency Logs**: Queries public CT logs via crt.sh to uncover forgotten or exposed subdomains.
+7. **Certificate Transparency Logs**: Queries public CT logs via two independent aggregators (crt.sh, with Cert Spotter as automatic fallback) to uncover forgotten or exposed subdomains.
 
 Netgrade synthesizes these findings into a weighted score $S \in [0, 100]$ and grade $G \in \{A, B, C, D, F\}$. It generates an instant **30-second spoken AI audio briefing** powered by ElevenLabs voice synthesis, provides an interactive **Plain-Language FAQ Guide**, and supports **Side-by-Side Competitor Benchmarking** so business owners can audit their posture relative to industry peers.
 
@@ -38,8 +38,10 @@ Netgrade is built with Python 3.13, FastAPI, and an asynchronous inspection engi
 2. **Parsing Unverified TLS Certificates**:
    Standard Python socket verification closes the connection on bad certificates. We implemented a two-pass TLS handshake: first attempting strict verification, and if rejected, retrying unverified purely to extract DER certificate bytes and explain the exact failure reason to the user.
 
-3. **Handling Third-Party Rate Limits**:
-   Public CT logs (crt.sh) can be slow or return HTTP 502 errors. We implemented tight 6-second request timeouts, single-retry policies, 5-minute TTL scan result caching, and token-bucket rate-limiting middleware to protect system performance.
+3. **A Third-Party Dependency That Actually Failed**:
+   CT logs are append-only Merkle trees indexed by certificate rather than by domain, so answering "which certificates exist for this name" requires an aggregator that has already indexed them — an unavoidable third-party dependency. We documented crt.sh as a single point of failure we did not control, alongside tight 6-second request timeouts, single-retry policies, 5-minute TTL caching, and token-bucket rate limiting.
+
+   Then it failed. crt.sh returned HTTP 502s to every query form, then read timeouts, and stayed down. Certificate history reported "could not check" on every scan. Rather than leave a documented risk unaddressed, we added a second aggregator: crt.sh is tried first, Cert Spotter answers when it cannot, and the report records which source responded. The payloads differ enough to need separate parsers, both reducing to one internal representation so the summarising logic never learns where the data came from. Production logs now show the failover working, with all seven checks completing.
 
 ## Accomplishments that we're proud of
 

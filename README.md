@@ -43,7 +43,7 @@ graph TD
         C --> D4[4. Cookie Flags - Secure/HttpOnly]
         C --> D5[5. Exposed Artefacts - .git/.env]
         C --> D6[6. DNS Hygiene & NS Spread]
-        C --> D7[7. Cert Transparency Logs - crt.sh]
+        C --> D7[7. Cert Transparency Logs - crt.sh + Cert Spotter]
     end
 
     C -->|List of CheckResults| E[Scoring & Weighting Engine]
@@ -65,7 +65,7 @@ graph TD
 | **Cookie Flags** | Secure, HttpOnly, and SameSite attributes | Weak flags expose active session tokens to theft and script hijacking. |
 | **Exposed Artefacts** | Sensitive paths such as `.git`, `.env`, `.DS_Store` | Leaked credentials and source repositories provide a direct breach path. |
 | **DNS Hygiene** | Nameserver spread, zone transfer exposure, dangling records | Single nameservers create single points of failure for total outages. |
-| **Certificate History** | Certificate transparency (CT) logs via crt.sh | Discovers forgotten subdomains still exposed on public networks. |
+| **Certificate History** | Certificate transparency (CT) logs via two independent aggregators (crt.sh, with Cert Spotter as automatic fallback) | Discovers forgotten subdomains still exposed on public networks. |
 | **Scored Report** | Weighted grade with prioritized plain-language fixes | Turns technical findings into actionable business decisions, not data dumps. |
 
 ---

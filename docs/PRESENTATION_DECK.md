@@ -78,7 +78,7 @@ graph TD
 ## Slide 8: Hackathon Rubric Alignment (54/54 Max)
 | Category | Score | Highlights |
 | :--- | :--- | :--- |
-| **Technical Achievement** | 12 / 12 | Async fan-out, process semaphore, raw TLS cryptography parsing, crt.sh CT integration |
+| **Technical Achievement** | 12 / 12 | Async fan-out, process semaphore, raw TLS cryptography parsing, CT integration across two independent aggregators with automatic fallback |
 | **Implementation** | 12 / 12 | Clean FastAPI structure, modular check architecture, 4 comprehensive doc manuals |
 | **User Experience** | 12 / 12 | Interactive loading states, spoken ElevenLabs audio, WCAG AA accessibility, mobile layout |
 | **Project Completion** | 12 / 12 | 100% test coverage, Docker ready, live 404/500 error pages, zero unhandled exceptions |
