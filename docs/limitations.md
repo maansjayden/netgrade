@@ -78,11 +78,22 @@ result cache is deliberately short-lived.
 
 ## Some checks depend on third parties
 
-Certificate history reads crt.sh, which is outside our control and is
-frequently slow or briefly unavailable. When it cannot be read, the check
-reports "could not check" and is **excluded from the grade** rather than
-counted as a pass or a failure. A report showing fewer than seven checks scored
-says so, and the grade is capped when too little could be measured.
+Certificate history cannot be read from the logs directly. CT logs are
+append-only Merkle trees, queryable by certificate but not by domain, so
+answering "which certificates exist for this name" requires an aggregator that
+has already indexed them. That is an unavoidable third-party dependency, not a
+shortcut.
+
+We read two, in order: crt.sh, then Cert Spotter. The report records which one
+answered. This is not hypothetical redundancy - crt.sh returned 502s and
+timeouts across an entire day of testing, and every certificate history in that
+period came from the fallback.
+
+When neither can be read, the check reports "could not check" and is **excluded
+from the grade** rather than counted as a pass or a failure. A report showing
+fewer than seven checks scored says so, and the grade is capped when too little
+could be measured. The message says the domain is not at fault, because it is
+not - a third party's outage is not a finding about the user.
 
 We would rather show an incomplete report honestly than a complete one that
 quietly guesses.

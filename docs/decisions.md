@@ -147,9 +147,44 @@ the gather would cancel everything on timeout and throw away six finished
 results because one check stalled.
 
 **Changed after evidence.** Certificate history originally had a 45-second
-budget, sized for a slow-but-working crt.sh. That was wrong. A scan is only as
-fast as its slowest check, so a degraded third party set the wall clock for
+budget, sized for a slow-but-working aggregator. That was wrong. A scan is only
+as fast as its slowest check, so a degraded third party set the wall clock for
 every scan. Cut to 15 seconds, with a 6-second request timeout and one retry.
+
+## Certificate history reads two aggregators, not one
+
+**The decision.** Try crt.sh, then Cert Spotter, and record which one answered
+in the finding's evidence.
+
+An aggregator is unavoidable here. CT logs are append-only Merkle trees indexed
+by certificate, not by domain, so "which certificates exist for this name" is a
+question the logs cannot answer directly - somebody has to have indexed them
+first. The choice is not whether to depend on a third party but how many.
+
+**Changed after evidence, and this one was not a judgement call.** crt.sh went
+down during the build and stayed down: 502s to every query form, then read
+timeouts. Certificate history reported "could not check" on every scan and the
+engine scored six of seven checks. Cert Spotter answered the same query in 0.54
+seconds with full data.
+
+The cost was 141 added lines against 36 removed, 88 of them executable, almost
+all of it because the two payloads differ enough to need separate parsers -
+crt.sh newline-splits `name_value` and honours `exclude=expired` in the query
+string, Cert Spotter returns `dns_names` as a list and has no expiry parameter,
+so expiry is filtered on our side. Both reduce to one internal `_Entry`, so the
+summarising logic never learns which source it came from, and a test asserts the
+two payloads reduce to the same entry.
+
+**What this does not fix.** Correlated failure, and latency: the first source
+must time out before the second is tried, which is a real cost paid on the
+critical path. The 15-second budget bounds it and the check still degrades to
+`error` excluded from the grade. A long-lived CT cache is the actual answer and
+is deferred, not solved.
+
+**The reason it is worth a decision entry.** We had already written down that
+this was a single point of failure we did not control. It then failed, in
+production, exactly as described. Naming a risk and then acting on it when it
+arrives is the whole point of writing the risk down.
 
 ## The concurrency claim, stated accurately
 

@@ -12,8 +12,8 @@ order they are interesting in.
 ## What it is today
 
 A single stateless-looking container: FastAPI on uvicorn, one process, no
-database, no queue, no external services beyond the hosts being scanned and
-crt.sh.
+database, no queue, no external services beyond the hosts being scanned and the
+certificate transparency aggregators.
 
 **It is not stateless, and calling it stateless would be wrong.** Two things
 live in process memory:
@@ -32,8 +32,8 @@ rather than a README sentence.
 
 Almost all of it is spent waiting on other people's networks. A scan is roughly
 fifteen outbound requests across DNS, TLS, HTTP and one third-party API, and
-the measured wall clock is 2–6 seconds depending mostly on how crt.sh is
-feeling.
+the measured wall clock is 2–6 seconds depending mostly on how the certificate
+transparency aggregators are feeling.
 
 CPU is close to irrelevant: parsing a certificate and a few headers is
 microseconds against seconds of waiting. This is what makes asyncio the right
@@ -155,18 +155,43 @@ means a target sees traffic from ten addresses and our per-client rate limiting
 is the only thing bounding the total. A shared limiter (item 1) is therefore a
 prerequisite for horizontal scaling, not an optimisation alongside it.
 
-### 5. crt.sh is a single point of failure we do not control
+### 5. Certificate history depends on third parties we do not control
 
-Certificate history depends on one third party that is regularly slow and
-intermittently returns 502s. It already degrades correctly - 15-second budget,
-6-second request timeout, one retry, then `error` status excluded from the
-grade - but "degrades correctly" still means the check is unavailable.
+CT logs are append-only Merkle trees, queryable by certificate but not by
+domain, so an aggregator is unavoidable for this check. The question is only how
+many, and how gracefully we lose them.
+
+This was originally a single point of failure and is no longer one. Two
+aggregators are tried in order - crt.sh, then Cert Spotter - and the report
+records which answered. It cost 141 added lines against 36 removed - 88 of them
+executable - because the sources return different payloads and both had to
+reduce to one internal shape.
+
+**This was not a theoretical fix.** crt.sh went down mid-build, returning 502s
+to every query form and then read timeouts, and stayed down. Before the
+fallback, every scan reported certificate history as "could not check" and
+scored six of seven checks. After it, production logs read:
+
+```
+INFO netgrade.checks.cert_history: crt.sh unavailable (ReadTimeout); trying the next source
+INFO netgrade.orchestrator: scanned mozilla.org in 9.76s: B (82), 7 of 7 checks completed
+```
+
+The remaining exposure is correlated failure - both aggregators down, or the
+check slow because the first source has to time out before the second is tried.
+The 15-second budget still bounds that, and the check still degrades to `error`
+excluded from the grade.
 
 **The fix, in increasing order of effort.** Cache CT results far longer than
 scan results, since certificate history changes slowly and a day-old answer is
-almost as good as a fresh one. Then read the CT logs directly rather than
-through an aggregator. Then treat it as a background feed refreshed
-independently of scans, so a scan reads local data and never waits on anybody.
+almost as good as a fresh one - this also removes the timeout-then-retry latency
+on the critical path. Then treat it as a background feed refreshed independently
+of scans, so a scan reads local data and never waits on anybody.
+
+Reading the logs directly is the option we would *not* take. It means
+maintaining Merkle tree state for every trusted log and indexing certificates by
+name ourselves - which is precisely the service these aggregators provide, and
+building it to depend on nobody would be a project rather than a check.
 
 ---
 
@@ -184,8 +209,8 @@ The version worth building feeds certificate transparency results into the DNS
 check - CT already tells us which hostnames exist without any enumeration, so
 the names come from a public record rather than from guessing. It was
 deliberately deferred: it breaks the pure fan-out model into two phases and
-gates every scan on crt.sh latency, which is the dependency we least want on
-the critical path.
+gates every scan on aggregator latency, which is the dependency we least want on
+the critical path - and the one we have already watched fail.
 
 It becomes straightforward once CT is a background feed rather than a live
 call (item 5). That is the natural order: make the data local, then let another
@@ -213,7 +238,7 @@ deciding deliberately rather than arriving at by adding a table.
 | Duplicate scans | Coalesced in process | Redis lock for cross-instance | Second instance |
 | Long requests | Synchronous | Submit-and-poll + workers | p99 nears request timeout |
 | Outbound sockets | 24, process-wide | Horizontal, after shared limiter | Sustained queueing |
-| crt.sh | Live, degrades to `error` | Long cache, then background feed | Availability complaints |
+| CT aggregators | Two, live, degrade to `error` | Long cache, then background feed | Availability complaints |
 | Dangling records | Apex and `www` | CT-fed, two phase | After CT is a local feed |
 | History | Not stored | Database, with a privacy decision first | Product direction |
 
