@@ -70,6 +70,16 @@ graph TD
 
 ---
 
+## ✨ Key Features & User Experience Polish
+
+- **Plain-Language FAQ Guide**: Interactive accordion guide on the homepage explaining DMARC, security headers, passive inspection, and grade scoring math in simple, non-jargon terms ("Explain Like I'm 5").
+- **Dynamic Real-Time Step Overlay**: Animated progress banner cycling through all 7 passive security checks in real-time during scan execution.
+- **Anti-Spam Form Submission Guard**: Automatic double-click interception and button disabling (`pointer-events: none`) with spinning CSS SVG indicators.
+- **Spoken AI Audio Briefing**: Integrated ElevenLabs voice synthesis generating a 30-second spoken summary of top priority risks.
+- **Side-by-Side Competitor Comparison**: Benchmarks two domains concurrently against the shared engine pool.
+- **WCAG 2.1 AA Accessibility**: High-contrast HSL dark-mode theme, visible keyboard focus rings (`--focus-ring`), ARIA roles, and screen-reader skip links.
+- **Vector Security Shield Logo**: Custom SVG security shield icon container with hover scale animations and gradient brand typography.
+
 ## 🚀 Quick Start - One-Command Run
 
 ### Option A: Local Run via Python

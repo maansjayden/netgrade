@@ -22,7 +22,7 @@
 
 ## Slide 3: The Netgrade Solution
 - **Zero-Impact Passive Inspection**: Runs 7 non-intrusive DNS, TLS, and HTTP checks identical to SSL Labs.
-- **Plain-Language Remediation**: Every finding explains *What it inspects*, *Why a business owner cares*, and *Step-by-step fix*.
+- **Plain-Language Remediation & FAQ Guide**: Every finding explains *What it inspects*, *Why a business owner cares*, and *Step-by-step fix*, supported by an interactive "What We Scan & Why" FAQ guide.
 - **Spoken AI Audio Briefing**: Integrated ElevenLabs voice synthesis generates a 30-second audio summary highlighting top 3 priority risks.
 - **Competitor Benchmarking**: Side-by-side posture comparison allowing businesses to audit their security relative to peers.
 

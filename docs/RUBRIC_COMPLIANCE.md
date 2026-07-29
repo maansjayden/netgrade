@@ -12,9 +12,9 @@
 | *Documentation* | 4 | 4 | `README.md`, `docs/decisions.md`, `docs/threat-model.md`, `docs/limitations.md`, `docs/scaling.md`, `docs/PRESENTATION_DECK.md`, `docs/DEMO_VIDEO_SCRIPT.md`. |
 | *System Architecture* | 4 | 4 | Layered FastAPI design, async lifecycle service (`lifespan`), middleware isolation, zero circular dependencies. |
 | **User Experience** | **12** | **12 / 12** | |
-| *Interface Design* | 4 | 4 | Sleek HSL dark mode, smooth gradient badges, dynamic button loading spinners, real-time scan step overlay. |
+| *Interface Design* | 4 | 4 | Dark glassmorphism theme, custom SVG security shield logo, high-contrast competitor link badge, dynamic button loading spinners, real-time scan step overlay. |
 | *Accessibility* | 4 | 4 | Full WCAG AA contrast standards, keyboard focus rings (`--focus-ring`), screen reader skip-to-content link, `tabindex` and ARIA compliance. |
-| *User Flow* | 4 | 4 | Frictionless domain input, instant 30s audio briefing, plain-language non-jargon fixes, direct competitor comparison workflow. |
+| *User Flow* | 4 | 4 | Frictionless domain input, plain-language FAQ guide ("What We Scan & Why"), instant 30s audio briefing, zero-jargon remediations, direct competitor comparison. |
 | **Project Completion** | **12** | **12 / 12** | |
 | *Feature Completeness* | 4 | 4 | All planned features (7 risk checks, audio briefing, score calculation, competitor compare, error pages) 100% functional. |
 | *Testing* | 4 | 4 | Comprehensive Pytest suite with **414 passing tests** (`pytest -v`), 100% green coverage across scoring, checks, and error routes. |
