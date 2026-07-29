@@ -10,7 +10,12 @@ cannot be reached produces status="error" as data; it never raises past the
 orchestrator.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+
+try:
+    from datetime import UTC
+except ImportError:
+    UTC = timezone.utc
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
