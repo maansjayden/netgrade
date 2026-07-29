@@ -19,9 +19,12 @@ def request_with(
     *,
     path: str = "/scan",
     query: str = "",
+    cf_connecting_ip: str | None = None,
 ) -> Request:
     """A request as it would arrive behind a proxy."""
     headers = [(b"x-forwarded-for", forwarded.encode())] if forwarded else []
+    if cf_connecting_ip is not None:
+        headers.append((b"cf-connecting-ip", cf_connecting_ip.encode()))
     return Request(
         {
             "type": "http",
@@ -66,6 +69,79 @@ class TestClientKeyBehindOneProxy:
         laptop = client_key(request_with("203.0.113.7"), 1)
         phone = client_key(request_with("198.51.100.22"), 1)
         assert laptop != phone
+
+
+class TestClientKeyBehindCloudflare:
+    """Cloudflare sets CF-Connecting-IP itself, after terminating the connection."""
+
+    def test_it_is_believed_when_configured(self) -> None:
+        request = request_with("203.0.113.7", cf_connecting_ip="198.51.100.5")
+        assert client_key(request, 1, trust_cloudflare=True) == "198.51.100.5"
+
+    def test_it_wins_over_whatever_forwarded_for_claims(self) -> None:
+        """Including a forwarded chain the caller has stuffed with entries."""
+        request = request_with(
+            "1.2.3.4, 5.6.7.8, 203.0.113.7", cf_connecting_ip="198.51.100.5"
+        )
+        assert client_key(request, 1, trust_cloudflare=True) == "198.51.100.5"
+
+    def test_the_hop_count_no_longer_matters_when_it_is_present(self) -> None:
+        """The reason for preferring it: adding a proxy stops being a silent break.
+
+        Cloudflare in front of Railway made the configured hop count wrong
+        overnight. With this header the answer is the same at any hop count.
+        """
+        request = request_with("1.2.3.4, 203.0.113.7", cf_connecting_ip="198.51.100.5")
+        keys = {client_key(request, hops, trust_cloudflare=True) for hops in (0, 1, 2, 3)}
+        assert keys == {"198.51.100.5"}
+
+    def test_two_real_clients_still_get_different_keys(self) -> None:
+        laptop = request_with("203.0.113.7", cf_connecting_ip="198.51.100.5")
+        phone = request_with("203.0.113.7", cf_connecting_ip="198.51.100.99")
+        assert client_key(laptop, 1, trust_cloudflare=True) != client_key(
+            phone, 1, trust_cloudflare=True
+        )
+
+
+class TestCloudflareHeaderIsNotTrustedByDefault:
+    """The header is an ordinary one any caller can set.
+
+    Believing it merely because it is present would reintroduce, on every
+    deployment that is not behind Cloudflare, exactly the spoofable
+    bucket-per-request hole that reading the leftmost forwarded entry created.
+    """
+
+    def test_it_is_ignored_when_not_configured(self) -> None:
+        request = request_with("203.0.113.7", cf_connecting_ip="1.2.3.4")
+        assert client_key(request, 1) == "203.0.113.7"
+
+    def test_a_spoofed_header_cannot_mint_a_fresh_bucket(self) -> None:
+        first = client_key(request_with("203.0.113.7", cf_connecting_ip="9.9.9.9"), 1)
+        second = client_key(request_with("203.0.113.7", cf_connecting_ip="8.8.8.8"), 1)
+        assert first == second == "203.0.113.7"
+
+    def test_local_development_is_unaffected(self) -> None:
+        """No Cloudflare, no header, and the existing behaviour unchanged."""
+        assert client_key(request_with(None), 0) == "10.0.0.1"
+
+
+class TestCloudflareConfiguredButAbsent:
+    """Configured for Cloudflare, but the request arrived some other way.
+
+    This is the origin-bypass path: a platform URL that still answers directly.
+    Falling back to hop counting keeps some bound in place rather than none.
+    """
+
+    def test_it_falls_back_to_forwarded_for(self) -> None:
+        request = request_with("1.2.3.4, 203.0.113.7")
+        assert client_key(request, 1, trust_cloudflare=True) == "203.0.113.7"
+
+    def test_an_empty_header_is_treated_as_absent(self) -> None:
+        request = request_with("203.0.113.7", cf_connecting_ip="   ")
+        assert client_key(request, 1, trust_cloudflare=True) == "203.0.113.7"
+
+    def test_it_falls_back_to_the_peer_when_there_is_nothing_else(self) -> None:
+        assert client_key(request_with(None), 1, trust_cloudflare=True) == "10.0.0.1"
 
 
 class TestClientKeyWithOtherTopologies:

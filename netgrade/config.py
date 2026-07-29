@@ -30,6 +30,9 @@ ENV_COMPARE_COST: Final = "NETGRADE_COMPARE_COST"
 #: How many proxies sit in front of this process. See trusted_proxy_hops.
 ENV_TRUSTED_PROXY_HOPS: Final = "NETGRADE_TRUSTED_PROXY_HOPS"
 
+#: Whether Cloudflare is in front and its CF-Connecting-IP may be believed.
+ENV_TRUST_CLOUDFLARE: Final = "NETGRADE_TRUST_CLOUDFLARE"
+
 #: Log the client key each request resolves to. Off by default.
 ENV_DEBUG_CLIENT_KEY: Final = "NETGRADE_DEBUG_CLIENT_KEY"
 
@@ -59,6 +62,26 @@ class Settings:
     #: ignored entirely in favour of the socket's peer address.
     trusted_proxy_hops: int = 1
 
+    #: Whether to believe Cloudflare's CF-Connecting-IP header.
+    #:
+    #: Cloudflare sets this itself after terminating the connection, so behind
+    #: Cloudflare it is a single unambiguous value that does not depend on
+    #: counting hops -- which matters because the hop count changes whenever a
+    #: proxy is added or removed in front of us, silently and without failing.
+    #:
+    #: Opt-in rather than "believe it whenever it is present", because the
+    #: header is an ordinary request header that any caller can set. Trusting
+    #: it on a deployment that is not behind Cloudflare would reintroduce
+    #: exactly the spoofable bucket-per-request hole that reading the leftmost
+    #: X-Forwarded-For entry created.
+    #:
+    #: Enabling it asserts that this process is only reachable through
+    #: Cloudflare. Where the origin is also directly reachable -- a Railway or
+    #: Fly URL that still answers -- that assertion is not strictly true, and
+    #: the residual risk is written up in the threat model rather than papered
+    #: over here.
+    trust_cloudflare: bool = False
+
     #: Whether to log the client key each request resolves to. For verifying
     #: that two different networks land in two different buckets. Off by
     #: default because client addresses are personal data and logging them
@@ -74,6 +97,7 @@ class Settings:
             rate_burst=_int(ENV_RATE_BURST, defaults.rate_burst),
             compare_cost=_int(ENV_COMPARE_COST, defaults.compare_cost),
             trusted_proxy_hops=_int(ENV_TRUSTED_PROXY_HOPS, defaults.trusted_proxy_hops),
+            trust_cloudflare=_bool(ENV_TRUST_CLOUDFLARE, defaults.trust_cloudflare),
             debug_client_key=_bool(ENV_DEBUG_CLIENT_KEY, defaults.debug_client_key),
         )
 

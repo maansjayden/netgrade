@@ -7,6 +7,7 @@ from netgrade.config import (
     ENV_DEBUG_CLIENT_KEY,
     ENV_RATE_BURST,
     ENV_RATE_PER_MINUTE,
+    ENV_TRUST_CLOUDFLARE,
     ENV_TRUSTED_PROXY_HOPS,
     Settings,
 )
@@ -22,6 +23,7 @@ class TestDefaults:
             ENV_RATE_BURST,
             ENV_COMPARE_COST,
             ENV_TRUSTED_PROXY_HOPS,
+            ENV_TRUST_CLOUDFLARE,
             ENV_DEBUG_CLIENT_KEY,
         ):
             monkeypatch.delenv(name, raising=False)
@@ -35,6 +37,10 @@ class TestDefaults:
         assert defaults.trusted_proxy_hops == 1
         assert defaults.debug_client_key is False
 
+    def test_cloudflare_is_not_trusted_unless_asked_for(self) -> None:
+        """Trusting a caller-settable header must be a deliberate act."""
+        assert Settings().trust_cloudflare is False
+
 
 class TestOverrides:
     def test_the_rate_can_be_raised(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -42,6 +48,12 @@ class TestOverrides:
         monkeypatch.setenv(ENV_RATE_BURST, "20")
         settings = Settings.from_env()
         assert (settings.rate_per_minute, settings.rate_burst) == (60.0, 20)
+
+    def test_cloudflare_can_be_trusted_when_it_is_in_front(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(ENV_TRUST_CLOUDFLARE, "1")
+        assert Settings.from_env().trust_cloudflare is True
 
     def test_proxy_hops_can_be_changed_for_another_host(
         self, monkeypatch: pytest.MonkeyPatch
