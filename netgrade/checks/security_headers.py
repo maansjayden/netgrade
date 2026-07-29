@@ -78,6 +78,13 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
             "final_url": response.url,
             "status_code": response.status_code,
             "redirect_chain": list(response.redirect_chain),
+            # Which endpoint actually answered. Security headers are commonly
+            # added by a CDN rather than by the application, so a report that
+            # disagrees with a browser is usually a question of what replied
+            # rather than of what was parsed: "cloudflare" and the name of an
+            # origin host are different answers to different questions. Cheap
+            # to record, and it turns that diagnosis into one glance.
+            "served_by": response.headers.get("server"),
             "hsts_max_age_seconds": _hsts_max_age(response),
             "hsts_includes_subdomains": "includesubdomains"
             in (response.headers.get("strict-transport-security") or "").lower(),

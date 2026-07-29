@@ -73,6 +73,7 @@
         "final_url": "https://example-business.com/",
         "status_code": 200,
         "redirect_chain": [],
+        "served_by": "nginx",
         "hsts_max_age_seconds": 31536000,
         "hsts_includes_subdomains": false,
         "csp_report_only": false,
