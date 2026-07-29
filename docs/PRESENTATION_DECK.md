@@ -75,15 +75,15 @@ graph TD
 
 ---
 
-## Slide 8: Hackathon Rubric Alignment (54/54 Max)
+## Slide 8: Hackathon Rubric Alignment (48 of 54 Max Claimed)
 | Category | Score | Highlights |
 | :--- | :--- | :--- |
 | **Technical Achievement** | 12 / 12 | Async fan-out, process semaphore, raw TLS cryptography parsing, CT integration across two independent aggregators with automatic fallback |
 | **Implementation** | 12 / 12 | Clean FastAPI structure, modular check architecture, 4 comprehensive doc manuals |
 | **User Experience** | 12 / 12 | Interactive loading states, spoken ElevenLabs audio, WCAG AA accessibility, mobile layout |
 | **Project Completion** | 12 / 12 | 443 passing tests, Docker ready, live 404/500 error pages, zero unhandled exceptions |
-| **Video Evaluation** | 6 / 6 | 2-5 min scripted video covering Problem Statement, Demo, and Tech Architecture |
-| **Total Score** | **54 / 54** | **Aim High - Complete & Production-Ready** |
+| **Video Evaluation** | pending | Script written (`docs/DEMO_VIDEO_SCRIPT.md`); not yet recorded, so not claimed |
+| **Total Score** | **48 / 54 claimed** | **Six points pending the video. The rest is built, deployed and verified.** |
 
 ---
 

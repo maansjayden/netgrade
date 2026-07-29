@@ -1,5 +1,6 @@
 # Netgrade - Blueprint Hackathon Judging Rubric Self-Audit
-*Maximum Score Target: 54 / 54 Points*
+*Maximum Score Target: 54 / 54 Points — currently claiming 48, with the 6 video
+points pending recording.*
 
 | Rubric Category | Max Points | Netgrade Self-Score | Key Evidence & Implementation References |
 | :--- | :---: | :---: | :--- |
@@ -19,11 +20,11 @@
 | *Feature Completeness* | 4 | 4 | All planned features (7 risk checks, audio briefing, score calculation, competitor compare, error pages) 100% functional. |
 | *Testing* | 4 | 4 | Comprehensive Pytest suite with **443 passing tests** (`pytest -v`) across scoring, checks, orchestrator, middleware, and error routes. |
 | *Deployment* | 4 | 4 | Production deployment at `https://netgrade.certifa.net`, Docker containerized with `Dockerfile` and `docker-compose.yml`. |
-| **Video Evaluation** | **6** | **6 / 6** | |
-| *Problem Statement* | 2 | 2 | Clear explanation of small business security gap (70% lack IT staff, traditional active scanners create jargon/fear). |
-| *Solution Demo* | 2 | 2 | Thorough live walkthrough of `netgrade.certifa.net`, audio playback, check remediations, and competitor comparison. |
-| *Technical Explanation* | 2 | 2 | Detailed breakdown of async fan-out, process semaphore, raw TLS DER parsing, and excluded-error scoring logic. |
-| **TOTAL SCORE** | **54** | **54 / 54** | **Aim High - Ready for Judging!** |
+| **Video Evaluation** | **6** | **not yet recorded** | |
+| *Problem Statement* | 2 | pending | Scripted in `docs/DEMO_VIDEO_SCRIPT.md`: small business security gap (70% lack IT staff, traditional active scanners create jargon/fear). |
+| *Solution Demo* | 2 | pending | Scripted: live walkthrough of `netgrade.certifa.net`, audio playback, check remediations, competitor comparison. |
+| *Technical Explanation* | 2 | pending | Scripted: async fan-out, process semaphore, raw TLS DER parsing, excluded-error scoring, CT aggregator failover. |
+| **TOTAL SCORE** | **54** | **48 / 54 claimed** | **6 points pending the video, which is written but not filmed.** |
 
 ---
 
