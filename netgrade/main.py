@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -9,15 +10,39 @@ from fastapi.responses import HTMLResponse
 from netgrade.models import ScanResult, CheckResult
 from netgrade.audio import ElevenLabsAudioGenerator
 from netgrade.api import router as api_router
+from netgrade.domains import InvalidDomainError
+from netgrade.middleware import RateLimitMiddleware
+from netgrade.service import ScanService
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Open one engine for the process, and close it on shutdown.
+
+    The connection pool, DNS resolver, outbound concurrency bound and result
+    cache are all per-process rather than per-request. Building them per
+    request would mean a new pool on every scan and a cache that never hits.
+    """
+    async with ScanService.open() as service:
+        app.state.service = service
+        logger.info("scan engine ready")
+        yield
+    logger.info("scan engine closed")
+
 
 # Initialize FastAPI Application Scaffolding & Routing
 app = FastAPI(
     title="Netgrade Security Posture Scanner",
     description="Passive security posture scanner designed for small businesses",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
+# Applies to the HTML pages as well as the JSON API: both are front doors onto
+# the same expensive work, so limiting only one of them would not be a limit.
+app.add_middleware(RateLimitMiddleware)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 static_dir = os.path.join(BASE_DIR, "static")
@@ -93,35 +118,16 @@ async def home_page(request: Request):
 async def scan_domain(request: Request, domain: str = "example.com", force: bool = False):
     clean_domain = domain.strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
     
-    # Deferred import: the engine is not in this build yet. Moves to module
-    # scope at Phase 4 integration, once netgrade.orchestrator exists.
+    # Only malformed input is an error here. A domain that cannot be reached
+    # still produces a report: the checks that could not run come back with
+    # status "error" inside it, and are excluded from the grade rather than
+    # counted as failures. Anything else raising is a defect in the engine and
+    # must be loud, rather than degrading into sample data a user would read
+    # as a real finding.
     try:
-        from netgrade.orchestrator import ScannerOrchestrator
-        from netgrade.scoring import calculate_score_and_grade
-    except ImportError as exc:
-        logger.error("scan requested but engine is not installed: %s", exc)
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "The scanning engine is not available in this build. "
-                "No results can be produced for this domain."
-            ),
-        ) from exc
-
-    # Deliberately unguarded. A domain that cannot be reached is not an
-    # exception -- each check returns status='error' as data. So anything
-    # raising here is a defect in the engine, and it must be loud rather
-    # than degrade into sample data the user would read as a real finding.
-    orchestrator = ScannerOrchestrator()
-    checks = await orchestrator.run_all_checks(clean_domain)
-    score, grade = calculate_score_and_grade(checks)
-    report = ScanResult(
-        domain=clean_domain,
-        scanned_at=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        grade=grade,
-        score=score,
-        checks=checks
-    )
+        report = await request.app.state.service.scan(clean_domain, force=force)
+    except InvalidDomainError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     audio_url = await audio_gen.get_or_generate_audio(
         report.domain, report.grade, report.score, report.checks
