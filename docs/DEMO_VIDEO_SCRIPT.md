@@ -41,7 +41,7 @@
 *(Click 'Listen Briefing' button to play 4-5 seconds of audio)*
 
 > **Mike**:  
-> "Every finding is ordered by priority. Under **Email Spoofing**, Netgrade explains in plain English that missing DMARC allows anyone to impersonate the business via email, and gives the exact DNS TXT record needed to fix it.  
+> "Every finding is ordered by priority. Under **Email Spoofing**, Netgrade explains in plain English that missing DMARC allows anyone to impersonate the business via email, and gives the exact DNS TXT record needed to fix it. We also have an interactive **Plain-Language FAQ Guide** right on the homepage explaining DMARC, security headers, and passive scanning in simple terms.  
 > 
 > We also have **Side-by-Side Competitor Comparison**. Let's click comparison, enter two domain names, and scan. Both domains are evaluated concurrently against the engine pool so business owners can benchmark their security against peers."
 
