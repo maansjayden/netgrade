@@ -5,4 +5,5 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
     restart: unless-stopped
