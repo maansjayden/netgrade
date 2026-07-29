@@ -11,11 +11,13 @@ is already built against it.
 import json
 import logging
 from pathlib import Path
-from typing import Final
+from typing import Annotated, Final
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
+from netgrade.domains import InvalidDomainError
 from netgrade.models import ScanResult
+from netgrade.service import ScanService
 
 logger = logging.getLogger(__name__)
 
@@ -73,3 +75,83 @@ async def mock_scan(
     # shared by every request, and mutating it would leak one caller's
     # domain into the next caller's response.
     return _MOCK_SCAN.model_copy(update={"domain": domain.strip().lower()})
+
+
+def _service(request: Request) -> ScanService:
+    """The shared engine, attached to the app at startup.
+
+    Read off application state rather than constructed here, so that every
+    route shares one connection pool, one concurrency bound and one cache.
+    """
+    service = getattr(request.app.state, "service", None)
+    if not isinstance(service, ScanService):
+        raise HTTPException(
+            status_code=503,
+            detail="The scanning engine is not available in this build.",
+        )
+    return service
+
+
+DomainParam = Annotated[
+    str,
+    Query(
+        min_length=1,
+        max_length=_MAX_DOMAIN_LENGTH,
+        description="Domain to scan. A pasted URL is accepted and reduced to its host.",
+    ),
+]
+
+
+@router.get(
+    "/scan",
+    response_model=ScanResult,
+    summary="Scan a domain",
+    responses={
+        400: {"description": "The input is not a domain this tool will scan."},
+        429: {"description": "Rate limited. Retry-After says when to return."},
+    },
+)
+async def scan_domain(
+    request: Request,
+    domain: DomainParam,
+    force: bool = Query(default=False, description="Bypass and replace any cached result."),
+) -> ScanResult:
+    """Run all seven checks and return a scored report.
+
+    A domain that cannot be reached is not an error here: the checks that could
+    not run come back with status "error" inside an otherwise normal report.
+    Only malformed input produces a 4xx, because that is a fault in the request
+    rather than a finding about a domain.
+    """
+    try:
+        return await _service(request).scan(domain, force=force)
+    except InvalidDomainError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get(
+    "/compare",
+    response_model=list[ScanResult],
+    summary="Scan two domains concurrently",
+    responses={
+        400: {"description": "One of the inputs is not a domain this tool will scan."},
+        429: {"description": "Rate limited. Retry-After says when to return."},
+    },
+)
+async def compare_domains(
+    request: Request,
+    domain1: DomainParam,
+    domain2: DomainParam,
+    force: bool = Query(default=False, description="Bypass and replace any cached results."),
+) -> list[ScanResult]:
+    """Scan two domains at once and return both reports, in the order given.
+
+    A list rather than an object with named sides, so the frontend can render
+    it with the same loop it uses for one report and so a future three-way
+    comparison does not need a new shape.
+    """
+    try:
+        first, second = await _service(request).compare(domain1, domain2, force=force)
+    except InvalidDomainError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return [first, second]
