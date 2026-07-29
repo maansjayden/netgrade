@@ -53,6 +53,16 @@ class ScanCache(Protocol):
         """Store a result. Storing is best-effort and never raises."""
         ...
 
+    def invalidate(self, domain: str) -> None:
+        """Drop any stored result for this domain.
+
+        Part of the protocol rather than of one implementation because the
+        force-rescan path depends on it: an alternative backend that omitted
+        it would type-check and then fail the one flow the product is built
+        around.
+        """
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class _Entry:
