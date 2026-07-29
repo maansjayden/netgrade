@@ -1,8 +1,6 @@
 """Per-domain TTL caching."""
 
-from datetime import datetime, timezone
-
-UTC = getattr(datetime, "UTC", timezone.utc)
+from datetime import UTC, datetime
 
 import pytest
 

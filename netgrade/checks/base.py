@@ -44,26 +44,6 @@ class Check:
     timeout: float | None = None
 
 
-from contextlib import asynccontextmanager
-
-
-@asynccontextmanager
-async def _timeout_scope(budget: float):
-    if hasattr(asyncio, "timeout"):
-        async with asyncio.timeout(budget):
-            yield
-    else:
-        task = asyncio.current_task()
-        loop = asyncio.get_running_loop()
-        handle = loop.call_later(budget, task.cancel)
-        try:
-            yield
-        except asyncio.CancelledError:
-            raise TimeoutError()
-        finally:
-            handle.cancel()
-
-
 async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
     """Run one check under its time budget. Never raises.
 
@@ -75,7 +55,7 @@ async def execute(check: Check, domain: str, ctx: ScanContext) -> CheckResult:
     budget = check.timeout or ctx.timeouts.check
 
     try:
-        async with _timeout_scope(budget):
+        async with asyncio.timeout(budget):
             result = await check.run(domain, ctx)
     except TimeoutError:
         logger.warning("check %s timed out after %.1fs", check.id, budget)

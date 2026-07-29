@@ -13,8 +13,7 @@ deploy on next.
 import logging
 import os
 from dataclasses import dataclass
-from typing import Final
-from typing_extensions import Self
+from typing import Final, Self
 
 logger = logging.getLogger(__name__)
 

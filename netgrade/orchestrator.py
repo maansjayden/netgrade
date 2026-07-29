@@ -21,12 +21,7 @@ import asyncio
 import logging
 import time
 from collections.abc import Sequence
-from datetime import datetime, timezone
-
-try:
-    from datetime import UTC
-except ImportError:
-    UTC = timezone.utc
+from datetime import UTC, datetime
 from typing import Final
 
 from netgrade.checks.base import Check, error_result, execute

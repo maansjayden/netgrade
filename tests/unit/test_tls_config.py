@@ -33,7 +33,7 @@ def make_certificate(
 ) -> x509.Certificate:
     """Build a self-signed certificate with the properties under test."""
     key = ed25519.Ed25519PrivateKey.generate()
-    now = dt.datetime.now(getattr(dt, "UTC", dt.timezone.utc))
+    now = dt.datetime.now(dt.UTC)
     expires = now + dt.timedelta(days=days_until_expiry)
     # Anchored to the expiry rather than to now, so an already-expired
     # certificate still has a validity window that runs forwards.

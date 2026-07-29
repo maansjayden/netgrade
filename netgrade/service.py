@@ -13,8 +13,7 @@ comparison is two scans that must not become two connection pools.
 import asyncio
 import logging
 from types import TracebackType
-from typing import Final
-from typing_extensions import Self
+from typing import Final, Self
 
 from netgrade.cache import ScanCache, TTLScanCache
 from netgrade.context import ScanContext
