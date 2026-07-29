@@ -49,4 +49,71 @@
     </p>
   </article>
 </section>
+
+<!-- Plain-Language FAQ Accordion Section -->
+<section class="faq-section" aria-labelledby="faq-title">
+  <h2 id="faq-title" class="faq-title">Plain-Language Guide — What We Scan & Why</h2>
+  
+  <div class="faq-accordion">
+    <details class="faq-item" open>
+      <summary class="faq-summary">
+        <span>What is Netgrade and why is it "passive"?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>Think of Netgrade like a security guard inspecting your front door lock from the sidewalk. We inspect public DNS records, TLS certificates, and HTTP headers to see if your domain is protected—without ever attempting to break in, test passwords, or disrupt your website.</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary class="faq-summary">
+        <span>What is Email Spoofing & DMARC?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>Email spoofing occurs when scammers send fake emails pretending to come from your domain (e.g., <code>support@yourbusiness.com</code>). DMARC acts like a verified blue checkmark for your email, telling providers like Gmail and Outlook to block fake emails sent under your brand name.</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary class="faq-summary">
+        <span>What are Security Headers and why do I need them?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>Security headers are instruction cards your website sends to a visitor's web browser (like Chrome or Safari). They tell the browser to block common attacks like clickjacking (invisible fake buttons) or stealing user login cookies.</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary class="faq-summary">
+        <span>What does my Score (0-100) and Grade (A-F) mean?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>Your domain starts at 100 points and loses points for missing security controls based on severity. Grade A means modern best practices are enforced; Grade C or F means open gaps like missing email protection leave your business vulnerable to impersonation.</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary class="faq-summary">
+        <span>Will running a scan slow down or crash my website?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>Never! Every check is read-only and uses standard lightweight web requests. It uses less bandwidth than a single customer opening your homepage.</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary class="faq-summary">
+        <span>How does the Spoken Audio Briefing work?</span>
+        <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </summary>
+      <div class="faq-content">
+        <p>We use ElevenLabs AI voice synthesis to convert your technical security findings into a 30-second spoken summary. Instead of deciphering technical logs, business owners can listen to their top risks on their phone while on the go.</p>
+      </div>
+    </details>
+  </div>
+</section>
 {% endblock %}
