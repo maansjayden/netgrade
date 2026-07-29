@@ -118,6 +118,38 @@ class TestBoundedMemory:
         assert limiter.acquire("victim").allowed is True
 
 
+class TestCost:
+    """Allowance is charged by outbound footprint, not by request count."""
+
+    def test_a_costly_request_spends_more_of_the_bucket(self) -> None:
+        limiter = TokenBucketRateLimiter(burst=4)
+        assert limiter.acquire("client", cost=2).allowed is True
+        assert limiter.acquire("client", cost=2).allowed is True
+        assert limiter.acquire("client").allowed is False
+
+    def test_a_costly_request_is_refused_when_the_bucket_is_low(self) -> None:
+        limiter = TokenBucketRateLimiter(burst=3)
+        limiter.acquire("client", cost=2)
+        assert limiter.acquire("client", cost=2).allowed is False
+        assert limiter.acquire("client").allowed is True
+
+    def test_the_wait_covers_the_whole_cost(self, clock: list[float]) -> None:
+        limiter = TokenBucketRateLimiter(rate_per_minute=60, burst=2)
+        limiter.acquire("client", cost=2)
+
+        decision = limiter.acquire("client", cost=2)
+        assert decision.retry_after == pytest.approx(2.0, abs=0.01)
+
+    def test_a_cost_beyond_the_burst_is_rejected_as_a_bug(self) -> None:
+        """Never satisfiable, so it is a misconfiguration rather than a refusal."""
+        with pytest.raises(ValueError, match="exceeds the burst capacity"):
+            TokenBucketRateLimiter(burst=1).acquire("client", cost=2)
+
+    def test_a_nonpositive_cost_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="cost must be at least 1"):
+            TokenBucketRateLimiter().acquire("client", cost=0)
+
+
 class TestConfiguration:
     @pytest.mark.parametrize("rate", [0, -1])
     def test_a_nonpositive_rate_is_rejected(self, rate: float) -> None:

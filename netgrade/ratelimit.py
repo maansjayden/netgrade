@@ -53,8 +53,14 @@ class Decision:
 class RateLimiter(Protocol):
     """What the application needs from a limiter."""
 
-    def acquire(self, client: str) -> Decision:
-        """Spend one unit of allowance for this client, if there is any."""
+    def acquire(self, client: str, cost: int = 1) -> Decision:
+        """Spend allowance for this client, if there is enough.
+
+        ``cost`` is how much outbound work the request represents, not how many
+        requests it is. A comparison is one HTTP call and two scans against two
+        unrelated third parties, so charging it as one would under-count the
+        footprint the limit exists to bound.
+        """
         ...
 
 
@@ -88,8 +94,13 @@ class TokenBucketRateLimiter:
         self._max_clients = max_clients
         self._buckets: dict[str, _Bucket] = {}
 
-    def acquire(self, client: str) -> Decision:
-        """Spend one token, or say how long until one exists."""
+    def acquire(self, client: str, cost: int = 1) -> Decision:
+        """Spend `cost` tokens, or say how long until there are enough."""
+        if cost < 1:
+            raise ValueError("cost must be at least 1")
+        if cost > self._capacity:
+            raise ValueError(f"cost {cost} exceeds the burst capacity of {self._capacity:.0f}")
+
         now = _now()
         bucket = self._buckets.get(client)
 
@@ -102,12 +113,12 @@ class TokenBucketRateLimiter:
             bucket.tokens = min(self._capacity, bucket.tokens + elapsed * self._refill_per_second)
             bucket.updated_at = now
 
-        if bucket.tokens >= 1.0:
-            bucket.tokens -= 1.0
+        if bucket.tokens >= cost:
+            bucket.tokens -= cost
             return Decision(allowed=True)
 
-        retry_after = (1.0 - bucket.tokens) / self._refill_per_second
-        logger.info("rate limited %s; %.1fs until next scan", client, retry_after)
+        retry_after = (cost - bucket.tokens) / self._refill_per_second
+        logger.info("rate limited %s; %.1fs until %d token(s) available", client, retry_after, cost)
         return Decision(allowed=False, retry_after=retry_after)
 
     def reset(self, client: str) -> None:
