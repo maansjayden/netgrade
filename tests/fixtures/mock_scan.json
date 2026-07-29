@@ -2,7 +2,7 @@
   "domain": "example-business.com",
   "scanned_at": "2026-07-28T14:03:11Z",
   "grade": "F",
-  "score": 36,
+  "score": 42,
   "checks_scored": 6,
   "cached": false,
   "checks": [
@@ -59,7 +59,7 @@
     {
       "id": "security_headers",
       "title": "HTTP security headers",
-      "status": "fail",
+      "status": "warn",
       "severity": "medium",
       "summary": "Content-Security-Policy is not set.",
       "explanation": "A Content-Security-Policy tells the browser which scripts it is allowed to run. Without one, a single injected script anywhere on the page runs with full access to what your visitors see and type.",

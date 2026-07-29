@@ -142,8 +142,14 @@ def _verdict(assessment: _Assessment) -> tuple[CheckStatus, Severity, str, str]:
         severity = max(
             (_ABSENCE_SEVERITY[name] for name in missing), key=_SEVERITY_ORDER.index
         )
+        # One absent header is a missing layer of defence in depth; two or more
+        # is a pattern of them not being configured at all. A single missing
+        # Content-Security-Policy is not the same class of problem as a missing
+        # DMARC policy, which is exploitable today, and grading them alike
+        # pushes most otherwise-decent domains into a failing check and costs
+        # the grade its ability to discriminate.
         return (
-            "fail" if severity == "medium" else "warn",
+            "fail" if len(missing) >= 2 else "warn",
             severity,
             f"{_join(names)} {'is' if len(names) == 1 else 'are'} not set.",
             _fix_for(missing),

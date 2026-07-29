@@ -37,12 +37,31 @@ def test_no_headers_at_all_fails_high():
     assert "response headers, not code changes" in fix
 
 
-def test_missing_csp_alone_fails_medium():
+def test_missing_csp_alone_only_warns():
+    """One absent header is a missing layer, not an open door.
+
+    A lone missing Content-Security-Policy is defence in depth that is not
+    there. It is not the same class of problem as a missing DMARC policy,
+    which is exploitable today, and grading them alike would push most
+    otherwise-decent domains into a failing check.
+    """
     headers = {k: v for k, v in ALL_HEADERS.items() if k != "content-security-policy"}
     status, severity, summary, _ = _verdict(_assess_headers(response(headers)))
 
-    assert (status, severity) == ("fail", "medium")
+    assert (status, severity) == ("warn", "medium")
     assert "Content-Security-Policy" in summary
+
+
+def test_two_missing_headers_fail():
+    """Two absent headers is a pattern of them not being configured at all."""
+    headers = {
+        k: v
+        for k, v in ALL_HEADERS.items()
+        if k not in ("content-security-policy", "strict-transport-security")
+    }
+    status, severity, _, _ = _verdict(_assess_headers(response(headers)))
+
+    assert (status, severity) == ("fail", "medium")
 
 
 def test_missing_nosniff_alone_only_warns():
