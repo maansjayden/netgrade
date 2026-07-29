@@ -5,7 +5,7 @@
 
 [![Live Site](https://img.shields.io/badge/Live%20Demo-netgrade.certifa.net-06b6d4?style=for-the-badge&logo=fastapi)](https://netgrade.certifa.net)
 [![Tests](https://img.shields.io/badge/Pytest-443%20Passed-10b981?style=for-the-badge&logo=pytest)](https://netgrade.certifa.net)
-[![Rubric Score](https://img.shields.io/badge/Rubric%20Score-54%2F54%20Points-3b82f6?style=for-the-badge)](docs/RUBRIC_COMPLIANCE.md)
+[![Rubric Score](https://img.shields.io/badge/Rubric%20Score-48%2F54%20Claimed-3b82f6?style=for-the-badge)](docs/RUBRIC_COMPLIANCE.md)
 
 Enter any domain, get a scored security posture report across 7 passive risk checks with plain-language findings, spoken ElevenLabs audio briefings, anti-spam loading states, and side-by-side competitor posture comparisons.
 
@@ -19,7 +19,7 @@ For judging rubric verification and technical deep-dives, explore our dedicated 
 
 - **[Presentation Deck (docs/PRESENTATION_DECK.md)](docs/PRESENTATION_DECK.md)**: 8-slide presentation deck covering Problem, Solution, Architecture, UX, and Rubric alignment.
 - **[Demo Video Recording Script (docs/DEMO_VIDEO_SCRIPT.md)](docs/DEMO_VIDEO_SCRIPT.md)**: ~3-minute video recording script for Mike & teammate Jayden Maans.
-- **[Rubric Compliance Audit (docs/RUBRIC_COMPLIANCE.md)](docs/RUBRIC_COMPLIANCE.md)**: Itemized self-audit verifying **54 / 54 max points** across all 5 evaluation categories.
+- **[Rubric Compliance Audit (docs/RUBRIC_COMPLIANCE.md)](docs/RUBRIC_COMPLIANCE.md)**: Itemized self-audit claiming **48 of 54 points** across all 5 evaluation categories, with the 6 video points pending recording.
 - **[Design Decisions & Tradeoffs (docs/decisions.md)](docs/decisions.md)**: Deep dive into scoring math, error exclusion rules, process-wide semaphores, and DER parsing.
 - **[Threat Model & Boundaries (docs/threat-model.md)](docs/threat-model.md)**: Passive inspection guarantees, security assumptions, and boundary controls.
 - **[Limitations & Scope (docs/limitations.md)](docs/limitations.md)**: Explicit scope definitions and CDN/origin edge observations.
