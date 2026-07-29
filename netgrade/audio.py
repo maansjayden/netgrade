@@ -1,8 +1,17 @@
+import logging
 import os
 import hashlib
 import httpx
 from typing import List, Optional
 from netgrade.models import CheckResult
+
+logger = logging.getLogger(__name__)
+
+#: ElevenLabs retired eleven_monolingual_v1. The deployed instance was calling
+#: it, getting HTTP 400 back, and falling through to the silent fallback -- so
+#: every briefing was 504 bytes of nothing behind a working play button. Flash
+#: is the fastest current model and the briefing text is English.
+DEFAULT_MODEL_ID = "eleven_flash_v2_5"
 
 
 def _load_dotenv():
@@ -25,10 +34,12 @@ class ElevenLabsAudioGenerator:
     Generates plain-language audio briefings summarizing top risks.
     Caches output locally to avoid API invocation during live recorded demos.
     """
-    def __init__(self, api_key: Optional[str] = None, voice_id: str = "21m00Tcm4TlvDq8ikWAM"):
+    def __init__(self, api_key: Optional[str] = None, voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+                 model_id: str = DEFAULT_MODEL_ID):
         _load_dotenv()
         self.api_key = api_key or os.getenv("ELEVENLABS_API_KEY")
         self.voice_id = voice_id
+        self.model_id = model_id
         self.cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "audio_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
 
@@ -46,7 +57,7 @@ class ElevenLabsAudioGenerator:
             f"Focus on resolving your highest severity issue first."
         )
 
-    def _generate_fallback_audio(self, filepath: str, text: str) -> str:
+    def _generate_fallback_audio(self, filepath: str, text: str) -> str | None:
         """Synthesizes real spoken audio locally via SAPI or sample briefing wav when ElevenLabs API key is absent."""
         wav_path = filepath.rsplit(".", 1)[0] + ".wav"
         
@@ -74,12 +85,15 @@ class ElevenLabsAudioGenerator:
             shutil.copy(sample_wav, wav_path)
             return f"/static/audio_cache/{os.path.basename(wav_path)}"
 
-        # 3. Minimal silent fallback if all else fails
-        with open(filepath, "wb") as f:
-            f.write(b'\xff\xf3\x44\xc4' + b'\x00' * 500)
-        return f"/static/audio_cache/{os.path.basename(filepath)}"
+        # 3. Nothing could be synthesised. This used to write 500 zeroed mp3
+        # frames and return their URL, which rendered a play button over
+        # silence. No URL is the honest answer: the template omits the player.
+        logger.warning("no briefing audio available for %s", os.path.basename(filepath))
+        return None
 
-    async def get_or_generate_audio(self, domain: str, grade: str, score: int, checks: List[CheckResult]) -> str:
+    async def get_or_generate_audio(
+        self, domain: str, grade: str, score: int, checks: List[CheckResult]
+    ) -> str | None:
         text = self._build_briefing_text(domain, grade, score, checks)
         text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
         filename = f"briefing_{domain}_{text_hash[:10]}.mp3"
@@ -103,7 +117,7 @@ class ElevenLabsAudioGenerator:
                 }
                 data = {
                     "text": text,
-                    "model_id": "eleven_monolingual_v1",
+                    "model_id": self.model_id,
                     "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}
                 }
                 async with httpx.AsyncClient(timeout=10.0) as client:
@@ -111,9 +125,22 @@ class ElevenLabsAudioGenerator:
                     if res.status_code == 200 and len(res.content) > 1000:
                         with open(filepath, "wb") as f:
                             f.write(res.content)
+                        logger.info(
+                            "synthesised briefing for %s: %d bytes via %s",
+                            domain, len(res.content), self.model_id,
+                        )
                         return f"/static/audio_cache/{filename}"
+                    # A non-200 raises nothing, so the except below never saw
+                    # it -- the failure was discarded by this if having no
+                    # else. The body carries the reason; log it.
+                    logger.error(
+                        "ElevenLabs refused the briefing for %s: HTTP %s %s",
+                        domain, res.status_code, res.text[:500],
+                    )
             except Exception:
-                pass
+                logger.exception("ElevenLabs call failed for %s", domain)
+        else:
+            logger.error("ELEVENLABS_API_KEY is not set; no briefing can be synthesised")
 
         # Synthesize real spoken audio fallback for local offline testing
         return self._generate_fallback_audio(filepath, text)
