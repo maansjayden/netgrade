@@ -33,7 +33,7 @@ graph TD
 
 ---
 
-## 🔒 Scope — Locked 8 Passive Risk Checks
+## 🔒 Scope — 7 Passive Risk Checks + Scored Report
 
 | Check | What it Inspects | Why a Business Cares |
 | :--- | :--- | :--- |

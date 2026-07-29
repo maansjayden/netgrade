@@ -1,5 +1,5 @@
-import pytest
 from fastapi.testclient import TestClient
+
 from netgrade.main import app
 
 client = TestClient(app)

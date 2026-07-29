@@ -2,10 +2,7 @@
 
 from datetime import datetime, timezone
 
-try:
-    from datetime import UTC
-except ImportError:
-    UTC = timezone.utc
+UTC = getattr(datetime, "UTC", timezone.utc)
 
 import pytest
 
