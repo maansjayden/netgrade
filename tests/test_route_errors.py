@@ -10,6 +10,7 @@ Parametrised across both front doors deliberately. A test that only covered the
 one that was updated would have stayed green through exactly that bug.
 """
 
+import asyncio
 import itertools
 
 import pytest
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 
 from netgrade.main import app
+from tests.conftest import PUBLIC_IP, StubResolver
 
 #: A domain that is syntactically fine and does not exist. Registered names
 #: could be bought by somebody; this one is noise.
@@ -28,8 +30,29 @@ MALFORMED = "a"
 
 @pytest.fixture(scope="module")
 def client():
-    """A client with the real engine started, as the lifespan handler builds it."""
-    with TestClient(app) as started:
+    """A client with the real engine started, as the lifespan handler builds it.
+
+    Name resolution is stubbed, and raw sockets are refused. The routes, the
+    middleware, the exception handlers and the real ScanService all still run --
+    only the network is replaced, and only because it was the one part these
+    assertions did not depend on.
+
+    It mattered: with live DNS the nonexistent lookup is bounded by a 4-second
+    budget, and when that expired the orchestrator logged "scanning anyway" and
+    proceeded, so the route answered 200 instead of 404 and the test failed for
+    a reason that had nothing to do with the routing it exists to check. The
+    comparison case also left a real scan of example.com running in the client's
+    portal thread after the response was sent, competing with every test that
+    ran afterwards.
+    """
+    records = {"example.com": {"A": [PUBLIC_IP]}}
+
+    async def refuse(*args: object, **kwargs: object) -> None:
+        raise ConnectionRefusedError("refused by the test harness")
+
+    with TestClient(app) as started, pytest.MonkeyPatch.context() as patch:
+        patch.setattr(app.state.service._ctx, "resolver", StubResolver(records))
+        patch.setattr(asyncio, "open_connection", refuse)
         yield started
 
 

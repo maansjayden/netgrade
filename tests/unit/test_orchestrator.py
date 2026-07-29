@@ -14,12 +14,23 @@ from netgrade.context import ScanContext
 from netgrade.domains import InvalidDomainError
 from netgrade.models import CheckResult
 from netgrade.orchestrator import scan
+from tests.conftest import BARE_DOMAIN
 
 
 @pytest.fixture
-def ctx() -> ScanContext:
-    """A context no stub check actually touches."""
-    return ScanContext.open()
+def ctx(dns_context) -> ScanContext:
+    """A context with stubbed DNS.
+
+    The stub checks below never touch it, but ``scan`` itself does: it confirms
+    the domain exists before running anything. This fixture used to be a real
+    ``ScanContext.open()``, which was true to its old docstring and became
+    wrong when that check was added -- every test in this file then made a live
+    lookup for example.com under a 4-second DNS budget. When the budget expired
+    under load the orchestrator logged "scanning anyway" and carried on, adding
+    four seconds to tests that assert a sub-second wall clock. That was the
+    whole of the suite's intermittent failures.
+    """
+    return dns_context(BARE_DOMAIN)
 
 
 def stub(check_id: str, *, status: str = "pass", delay: float = 0.0) -> Check:
