@@ -34,11 +34,25 @@ logger = logging.getLogger(__name__)
 CHECK_ID: Final = "cert_history"
 TITLE: Final = "Certificate history"
 
-#: crt.sh aggregates the public logs and is the only source used. It is
-#: frequently slow, so the budget is deliberately tight -- a scan that stalls
-#: for the user is worse than a check that reports it could not look.
-_SOURCE: Final = "crt.sh"
-_SOURCE_URL: Final = "https://crt.sh/?q=%25.{domain}&output=json&exclude=expired"
+#: Certificate transparency is read through aggregators rather than from the
+#: logs directly, because the logs are append-only Merkle trees and searching
+#: them by domain is not something they offer. That makes the aggregator a
+#: dependency we do not control, so there are two of them.
+#:
+#: crt.sh is first: it is the most complete and it is what a security person
+#: will check our output against. It is also the least reliable, returning 502s
+#: for hours at a time. Cert Spotter answers in under a second when crt.sh is
+#: down, which is most of the value here -- one flaky provider makes a check
+#: unavailable, two independent ones make it merely slower on a bad day.
+_CRT_SH: Final = "crt.sh"
+_CRT_SH_URL: Final = "https://crt.sh/?q=%25.{domain}&output=json&exclude=expired"
+
+_CERT_SPOTTER: Final = "Cert Spotter"
+_CERT_SPOTTER_URL: Final = (
+    "https://api.certspotter.com/v1/issuances"
+    "?domain={domain}&include_subdomains=true&expand=dns_names&expand=issuer"
+)
+
 _REQUEST_TIMEOUT: Final = 6.0
 
 #: crt.sh returns a transient 502 often enough that a single attempt reports
@@ -46,10 +60,10 @@ _REQUEST_TIMEOUT: Final = 6.0
 #: several: the point is to ride out a blip, not to insist.
 _RETRIES: Final = 1
 
-#: Two attempts at _REQUEST_TIMEOUT each fit inside this with room to spare, so
-#: an unresponsive source is reported by this module -- which knows it was
-#: talking to crt.sh -- rather than by the generic budget in checks.base. The
-#: ceiling is a backstop, not the mechanism.
+#: Both sources, two attempts each at _REQUEST_TIMEOUT, fit inside this with
+#: room to spare, so an unresponsive aggregator is reported by this module --
+#: which knows what it was talking to -- rather than by the generic budget in
+#: checks.base. The ceiling is a backstop, not the mechanism.
 #:
 #: It was 45s, sized for a slow-but-working crt.sh. That was wrong: a scan is
 #: only as fast as its slowest check, so a degraded third party set the wall
@@ -77,7 +91,7 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
     await ctx.assert_domain_exists(domain)
 
     try:
-        entries = await _fetch_entries(domain, ctx)
+        source, entries = await _fetch_entries(domain, ctx)
     except (httpx.HTTPError, ValueError) as exc:
         return _source_unavailable(exc)
 
@@ -93,7 +107,7 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
         explanation=_explain(history),
         fix=fix,
         evidence={
-            "source": _SOURCE,
+            "source": source,
             "certificates_found": history.certificate_count,
             "distinct_names": len(history.names),
             # Capped: the full list can run to hundreds of entries, and the
@@ -117,12 +131,12 @@ def _source_unavailable(exc: Exception) -> CheckResult:
     only thing that was down is a log service they have never heard of.
     """
     detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
-    logger.warning("%s unavailable: %s", _SOURCE, detail)
+    logger.warning("no certificate transparency source could be read: %s", detail)
     return error_result(
         CHECK,
         summary=(
-            f"Could not check: the public certificate log service ({_SOURCE}) "
-            f"did not respond. This is not a problem with your domain."
+            "Could not check: the public certificate log services did not respond. "
+            "This is not a problem with your domain."
         ),
         detail=detail,
     )
@@ -181,14 +195,108 @@ def _explain(history: _History) -> str:
     )
 
 
-async def _fetch_entries(domain: str, ctx: ScanContext) -> list[dict[str, Any]]:
-    """Query crt.sh for unexpired certificates covering this domain.
+@dataclass(frozen=True, slots=True)
+class _Entry:
+    """One certificate, in a shape both aggregators can be reduced to.
 
-    Network and parse failures are allowed to propagate. This check depends on
-    a service outside our control, and reporting "could not check" is honest
-    where reporting "no certificates found" would be a fabrication.
+    Normalising here rather than teaching the summariser two response formats
+    means a third source would be one function, and means the summariser has
+    no idea which provider answered.
     """
-    url = _SOURCE_URL.format(domain=domain)
+
+    names: tuple[str, ...] = ()
+    issuer: str = ""
+    logged_at: datetime | None = None
+
+
+async def _fetch_entries(domain: str, ctx: ScanContext) -> tuple[str, list[_Entry]]:
+    """Read the transparency record, trying each aggregator in turn.
+
+    Returns the name of whichever source answered alongside its entries, so the
+    evidence can say where the data came from. A report that disagrees with
+    somebody's own check of crt.sh should be traceable to having read a
+    different aggregator rather than looking like a parsing error.
+
+    Raises:
+        httpx.HTTPError: if no source could be read. Reporting "could not
+            check" is honest where reporting "no certificates found" would be
+            a fabrication.
+    """
+    failures: list[str] = []
+
+    for source, fetch in (
+        (_CRT_SH, _fetch_crt_sh),
+        (_CERT_SPOTTER, _fetch_cert_spotter),
+    ):
+        try:
+            return source, await fetch(domain, ctx)
+        except (httpx.HTTPError, ValueError) as exc:
+            detail = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+            logger.info("%s unavailable (%s); trying the next source", source, detail)
+            failures.append(f"{source}: {detail}")
+
+    raise httpx.HTTPError("; ".join(failures))
+
+
+async def _fetch_crt_sh(domain: str, ctx: ScanContext) -> list[_Entry]:
+    """Query crt.sh, retrying once past a transient 502."""
+    payload = await _get_json(_CRT_SH_URL.format(domain=domain), _CRT_SH, ctx)
+
+    return [_entry_from_crt_sh(r) for r in payload if isinstance(r, dict)]
+
+
+def _entry_from_crt_sh(record: dict[str, Any]) -> _Entry:
+    """Normalise one crt.sh record. One record can cover several names."""
+    return _Entry(
+        names=tuple(
+            name
+            for raw in str(record.get("name_value", "")).splitlines()
+            if (name := raw.strip().lower().rstrip("."))
+        ),
+        issuer=str(record.get("issuer_name", "")).strip(),
+        logged_at=_parse_timestamp(record.get("entry_timestamp") or record.get("not_before")),
+    )
+
+
+async def _fetch_cert_spotter(domain: str, ctx: ScanContext) -> list[_Entry]:
+    """Query Cert Spotter, keeping only certificates that have not expired.
+
+    crt.sh is asked to exclude expired certificates in the query itself. Cert
+    Spotter has no such parameter, so the filter is applied here -- otherwise
+    the two sources would answer the same question differently and the count
+    would jump depending on which one happened to be up.
+    """
+    payload = await _get_json(_CERT_SPOTTER_URL.format(domain=domain), _CERT_SPOTTER, ctx)
+    now = datetime.now(UTC)
+    return [
+        _entry_from_cert_spotter(record)
+        for record in payload
+        if isinstance(record, dict) and not _has_expired(record, now)
+    ]
+
+
+def _has_expired(record: dict[str, Any], now: datetime) -> bool:
+    """Whether a Cert Spotter record is already out of date."""
+    expires = _parse_timestamp(record.get("not_after"))
+    return expires is not None and expires < now
+
+
+def _entry_from_cert_spotter(record: dict[str, Any]) -> _Entry:
+    """Normalise one Cert Spotter issuance."""
+    issuer = record.get("issuer")
+    return _Entry(
+        names=tuple(
+            name
+            for raw in record.get("dns_names") or ()
+            if (name := str(raw).strip().lower().rstrip("."))
+        ),
+        issuer=str(issuer.get("name", "")).strip() if isinstance(issuer, dict) else "",
+        logged_at=_parse_timestamp(record.get("not_before")),
+    )
+
+
+async def _get_json(url: str, source: str, ctx: ScanContext) -> list[Any]:
+    """Fetch a JSON array, retrying once past a transient server error."""
     last_error: httpx.HTTPStatusError | None = None
 
     for attempt in range(_RETRIES + 1):
@@ -199,10 +307,11 @@ async def _fetch_entries(domain: str, ctx: ScanContext) -> list[dict[str, Any]]:
         if not response.is_server_error:
             break
         last_error = httpx.HTTPStatusError(
-            f"{_SOURCE} returned {response.status_code}", request=response.request,
+            f"{source} returned {response.status_code}",
+            request=response.request,
             response=response,
         )
-        logger.info("%s returned %s, attempt %d", _SOURCE, response.status_code, attempt + 1)
+        logger.info("%s returned %s, attempt %d", source, response.status_code, attempt + 1)
     else:
         raise last_error  # type: ignore[misc]
 
@@ -210,30 +319,26 @@ async def _fetch_entries(domain: str, ctx: ScanContext) -> list[dict[str, Any]]:
 
     payload = response.json()
     if not isinstance(payload, list):
-        raise ValueError(f"{_SOURCE} returned {type(payload).__name__}, expected a list")
+        raise ValueError(f"{source} returned {type(payload).__name__}, expected a list")
     return payload
 
 
-def _summarise(entries: list[dict[str, Any]], domain: str) -> _History:
-    """Reduce raw log entries to the few facts worth reporting."""
+def _summarise(entries: list[_Entry], domain: str) -> _History:
+    """Reduce normalised log entries to the few facts worth reporting."""
     names: set[str] = set()
     issuers: Counter[str] = Counter()
     most_recent: datetime | None = None
 
     for entry in entries:
-        # One entry can cover several names, newline separated.
-        for raw in str(entry.get("name_value", "")).splitlines():
-            name = raw.strip().lower().rstrip(".")
-            if name and (name == domain or name.endswith(f".{domain}") or name.startswith("*.")):
+        for name in entry.names:
+            if name == domain or name.endswith(f".{domain}") or name.startswith("*."):
                 names.add(name)
 
-        issuer = str(entry.get("issuer_name", "")).strip()
-        if issuer:
-            issuers[_issuer_label(issuer)] += 1
+        if entry.issuer:
+            issuers[_issuer_label(entry.issuer)] += 1
 
-        logged = _parse_timestamp(entry.get("entry_timestamp") or entry.get("not_before"))
-        if logged and (most_recent is None or logged > most_recent):
-            most_recent = logged
+        if entry.logged_at and (most_recent is None or entry.logged_at > most_recent):
+            most_recent = entry.logged_at
 
     return _History(
         names=tuple(sorted(names)),
@@ -262,7 +367,7 @@ def _parse_timestamp(raw: object) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(raw)
     except ValueError:
-        logger.info("unparseable %s timestamp %r", _SOURCE, raw)
+        logger.info("unparseable certificate transparency timestamp %r", raw)
         return None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
