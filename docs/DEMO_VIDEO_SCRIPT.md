@@ -1,4 +1,4 @@
-# Netgrade — Demo Video Recording Script for Mike
+# Netgrade - Demo Video Recording Script for Mike
 *Blueprint Hackathon 2026 Submission*
 
 > **Target Duration**: ~3 minutes (Strictly within the 2–5 minute hackathon limit).  
@@ -18,7 +18,7 @@
 > 
 > Over 70% of small businesses have zero dedicated IT or security staff. When non-technical business owners try to audit their web posture, standard scanners either launch intrusive vulnerability probes or output 40-page PDF reports filled with raw cryptographic jargon that no one understands.  
 > 
-> Small business owners don't need terrifying vulnerability dumps — they need a quick, zero-risk posture grade with plain-language remediations they can fix immediately."
+> Small business owners don't need terrifying vulnerability dumps - they need a quick, zero-risk posture grade with plain-language remediations they can fix immediately."
 
 ---
 
@@ -28,7 +28,7 @@
 > **Mike**:  
 > "Our site is live at `netgrade.certifa.net`. Jayden designed the UI with modern dark glassmorphism, responsive controls, and high-contrast WCAG AA accessibility.  
 > 
-> Let's test a domain right now — I'll type `example.com` and click **Scan Domain**.  
+> Let's test a domain right now - I'll type `example.com` and click **Scan Domain**.  
 > Notice how the button immediately displays an active loading state with a spinning indicator while our scanner cycles through 7 passive security checks in real time."
 
 *(Wait 2-3 seconds as scan completes and report opens)*

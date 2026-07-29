@@ -9,7 +9,7 @@ product, and it is also the entire attack surface. Most of what follows is a
 consequence of taking that seriously.
 
 Two parties can be harmed here, and they are not the same party. There is the
-person using the tool, and there is the operator of the domain being scanned —
+person using the tool, and there is the operator of the domain being scanned  - 
 who did not ask to be scanned and may not know it happened. Several decisions
 below protect the second at the expense of the first's convenience.
 
@@ -30,7 +30,7 @@ persistent storage. There is no database to breach.
 
 ---
 
-## Server-side request forgery — the primary risk
+## Server-side request forgery - the primary risk
 
 **The attack.** An attacker registers a domain whose A record points at
 `169.254.169.254`, or `127.0.0.1`, or an internal address in our hosting
@@ -43,8 +43,8 @@ hand out credentials to anything that asks from the right network position.
 
 **What we do.** Every hostname is resolved and every resulting address checked
 against public-routability before a connection is opened
-(`context.assert_public_host`). Loopback, RFC 1918, link-local — which covers
-`169.254.169.254` — carrier-grade NAT, multicast and reserved ranges are all
+(`context.assert_public_host`). Loopback, RFC 1918, link-local - which covers
+`169.254.169.254` - carrier-grade NAT, multicast and reserved ranges are all
 refused. Both A and AAAA records are checked, and **all** resolved addresses
 must be public: one bad address in a set refuses the whole host.
 
@@ -56,7 +56,7 @@ Response bodies are capped at 64 KB, read from a streaming response. An
 unbounded read from a host under attacker control is a memory exhaustion
 vector, and no check needs more than the first few kilobytes.
 
-Evidence never echoes a blocked internal address back to the caller — the
+Evidence never echoes a blocked internal address back to the caller - the
 finding says the domain does not point at a public address, without confirming
 which one. Tested.
 
@@ -86,7 +86,7 @@ thousand of them reasonable. Volume changes the nature of the act.
 
 **What we do.** A token bucket per client, five scans a minute with a burst of
 five, applied as middleware so it covers the HTML pages and the JSON API
-equally — limiting one front door and not the other would not be a limit.
+equally - limiting one front door and not the other would not be a limit.
 
 Requests are priced by outbound footprint rather than by count: a comparison
 runs two scans and costs two. The empty comparison form scans nothing and
@@ -117,7 +117,7 @@ and the limiter is decorative.
 **This was a live bug, not a hypothetical.** The first implementation read the
 leftmost `X-Forwarded-For` entry. Each proxy *appends* the peer it received
 from, so a client sending `X-Forwarded-For: 1.2.3.4` produces
-`1.2.3.4, <their real address>` — and the leftmost entry is whatever they
+`1.2.3.4, <their real address>` - and the leftmost entry is whatever they
 typed.
 
 It cannot be caught by testing against the deployed URL. With one real source
@@ -133,7 +133,7 @@ configured falls back to the socket peer rather than guessing at an index.
 
 Where Cloudflare is in front, `CF-Connecting-IP` is preferred, because it is a
 single value Cloudflare sets after terminating the connection and it does not
-depend on counting hops — a hop count is silently wrong the moment the topology
+depend on counting hops - a hop count is silently wrong the moment the topology
 changes, which is exactly what happened to us when Cloudflare was added.
 
 That preference is **opt-in** (`NETGRADE_TRUST_CLOUDFLARE`), not "believe it
@@ -144,7 +144,7 @@ hole in a new place.
 **What remains open.** Enabling it asserts the process is only reachable
 through Cloudflare. While the platform origin URL still answers directly, that
 assertion is not strictly true, and a request to the origin can carry a forged
-header. No header choice fixes this — a forged `X-Forwarded-For` at the
+header. No header choice fixes this - a forged `X-Forwarded-For` at the
 configured hop count has the identical bypass. Closing it means restricting the
 origin to the CDN's addresses or requiring a shared secret at the edge. Neither
 is done. The exposure is bounded: an attacker can evade their own rate limit,
@@ -152,7 +152,7 @@ via a URL that is not the advertised one.
 
 ## Reporting something false
 
-**The risk.** Not an attack — a defect, and the one we treat most seriously.
+**The risk.** Not an attack - a defect, and the one we treat most seriously.
 A security report that states something untrue about a domain is worse than no
 report, because it is acted on.
 
@@ -193,7 +193,7 @@ A hostile or broken target could hold connections open indefinitely. Three
 bounds apply: per-check budgets, a 20-second whole-scan deadline after which
 unfinished checks are cancelled and reported as "could not check", and the
 process-wide socket cap. Partial results beat no results, and both bounds exist
-because either alone leaves a gap — a check can be slow without having timed
+because either alone leaves a gap - a check can be slow without having timed
 out.
 
 Cache and rate-limiter keys both derive from user input, so both structures are
@@ -216,7 +216,7 @@ and the image, along with internal material that must not be published.
 
 Client IP addresses are held in memory for rate limiting and are not persisted.
 They are logged only when `NETGRADE_DEBUG_CLIENT_KEY` is enabled, which is off
-by default — deliberately a switch rather than a temporary code change, so
+by default - deliberately a switch rather than a temporary code change, so
 there is nothing to forget to remove, and so continuous collection of personal
 data is never the accidental default.
 

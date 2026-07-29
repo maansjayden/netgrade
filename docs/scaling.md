@@ -18,13 +18,13 @@ crt.sh.
 **It is not stateless, and calling it stateless would be wrong.** Two things
 live in process memory:
 
-- the result cache — 512 domains, five-minute TTL
-- the rate limiter — token buckets for up to 4096 client addresses
+- the result cache - 512 domains, five-minute TTL
+- the rate limiter - token buckets for up to 4096 client addresses
 
 Both are deliberate for one instance and both are the first thing to move. They
 sit behind protocols (`cache.ScanCache`, `ratelimit.RateLimiter`) precisely so
 that moving them is a new implementation rather than a rewrite, and both
-protocols are conformance-tested — the annotation `cache: ScanCache =
+protocols are conformance-tested - the annotation `cache: ScanCache =
 TTLScanCache()` makes mypy reject a drift, so "swappable" is a checked claim
 rather than a README sentence.
 
@@ -50,12 +50,12 @@ where the throughput is, not making one scan faster.
 
 ### 1. Two instances mean two rate limits
 
-The moment a second container starts, a client gets its allowance twice — once
-per instance — and the effective limit doubles per instance added. The cache
+The moment a second container starts, a client gets its allowance twice - once
+per instance - and the effective limit doubles per instance added. The cache
 degrades the same way: a domain cached on instance A is a miss on instance B,
 so hit rate falls roughly as `1/n`.
 
-**The fix.** Redis, and only Redis — no other architectural change. Two new
+**The fix.** Redis, and only Redis - no other architectural change. Two new
 implementations of protocols that already exist:
 
 ```python
@@ -78,15 +78,15 @@ across every instance rather than per instance, and a scan result becomes
 inspectable outside the process, which helps when a report is disputed.
 
 **Cost.** One managed Redis, and a dependency that can now be down. Both
-implementations should fail open — a Redis outage should degrade to "no cache,
+implementations should fail open - a Redis outage should degrade to "no cache,
 no limit" rather than to "no service", because a scanner that stops working
 when its cache is unavailable is worse than one that briefly scans too much.
 
-### 2. Fifty people scanning the same domain ran fifty scans — fixed
+### 2. Fifty people scanning the same domain ran fifty scans - fixed
 
 The cache only helps once a scan has finished. Under a burst of interest in
-one domain — the exact shape of traffic a demo, a shared link or a CI
-integration produces — concurrent requests all missed, all scanned, and all
+one domain - the exact shape of traffic a demo, a shared link or a CI
+integration produces - concurrent requests all missed, all scanned, and all
 hit the target host simultaneously. Wasteful for us, and inconsiderate to a
 server that did not ask to be scanned at all.
 
@@ -131,7 +131,7 @@ scan, or when enough concurrent scans exhaust the worker pool. The symptom is
 the web process only accepts and reads.
 
 **Cost, and why it is not done.** It is a real contract change and it makes the
-frontend stateful — the single most expensive item here in work and in user
+frontend stateful - the single most expensive item here in work and in user
 experience. It buys nothing at current volumes. The honest trigger is: when the
 p99 scan duration approaches the platform request timeout, or when queueing is
 visible to users.
@@ -140,7 +140,7 @@ visible to users.
 
 The process-wide bound is 24 concurrent sockets, shared across every scan
 rather than per scan. At roughly fifteen requests per scan that supports a
-handful of concurrent scans comfortably and queues beyond that — which is the
+handful of concurrent scans comfortably and queues beyond that - which is the
 correct behaviour, since queueing is preferable to opening several hundred
 sockets.
 
@@ -158,9 +158,9 @@ prerequisite for horizontal scaling, not an optimisation alongside it.
 ### 5. crt.sh is a single point of failure we do not control
 
 Certificate history depends on one third party that is regularly slow and
-intermittently returns 502s. It already degrades correctly — 15-second budget,
+intermittently returns 502s. It already degrades correctly - 15-second budget,
 6-second request timeout, one retry, then `error` status excluded from the
-grade — but "degrades correctly" still means the check is unavailable.
+grade - but "degrades correctly" still means the check is unavailable.
 
 **The fix, in increasing order of effort.** Cache CT results far longer than
 scan results, since certificate history changes slowly and a day-old answer is
@@ -181,7 +181,7 @@ subdomain takeover risk lives in forgotten names, and finding those means
 knowing what the subdomains are.
 
 The version worth building feeds certificate transparency results into the DNS
-check — CT already tells us which hostnames exist without any enumeration, so
+check - CT already tells us which hostnames exist without any enumeration, so
 the names come from a public record rather than from guessing. It was
 deliberately deferred: it breaks the pure fan-out model into two phases and
 gates every scan on crt.sh latency, which is the dependency we least want on
@@ -194,8 +194,8 @@ check depend on it.
 ### Historical tracking
 
 Nothing is stored, so nobody can see whether their posture improved. Per-domain
-history — grade over time, what changed between scans, an alert when a
-certificate is about to expire or a header disappears in a deployment — is the
+history - grade over time, what changed between scans, an alert when a
+certificate is about to expire or a header disappears in a deployment - is the
 obvious product direction and the first thing that needs a real database.
 
 It also changes what this is. Storing scan history for domains people do not own

@@ -10,7 +10,7 @@ point, on the date shown**. It is not a statement that a business is secure.
 
 ## It does not attack anything
 
-Every check is passive and read-only — the same class of inspection SSL Labs
+Every check is passive and read-only - the same class of inspection SSL Labs
 and securityheaders.com perform against any public host. It reads DNS records,
 completes a TLS handshake, requests a small number of pages, and reads public
 certificate transparency logs.
@@ -33,8 +33,8 @@ it. The cookie check says so in its own finding rather than implying it
 examined more than it did.
 
 This is the largest single gap between a passing grade and being secure. Most
-of what actually goes wrong in a small business — a reused admin password, a
-staff member phished, an unpatched server with no public symptom — sits
+of what actually goes wrong in a small business - a reused admin password, a
+staff member phished, an unpatched server with no public symptom - sits
 entirely outside what any anonymous scan can observe.
 
 ## It reports what is observable from where it stands
@@ -45,7 +45,7 @@ That is not a formality. Security headers and TLS settings are frequently
 applied by a CDN rather than by the application behind it, and the two do not
 have to agree. A scanner running inside the origin's own network can reach the
 origin without traversing the CDN, and will then report the origin's
-configuration — accurately — while a visitor's browser sees something
+configuration - accurately - while a visitor's browser sees something
 different.
 
 We hit this with our own deployment. Scanning `netgrade.certifa.net` from a
@@ -60,9 +60,9 @@ header, so a report that disagrees with a browser can be traced to which
 endpoint answered rather than assumed to be a parsing error.
 
 The practical consequence for a reader: if headers are added by a CDN, confirm
-the origin sets them too. Anything that reaches the origin directly — a
+the origin sets them too. Anything that reaches the origin directly - a
 misconfigured DNS record, a leaked origin address, a request from inside the
-same network — bypasses protection that only exists at the edge.
+same network - bypasses protection that only exists at the edge.
 
 ## It makes no claim about internal networks
 
@@ -104,5 +104,5 @@ The finding says this rather than reporting an absence it cannot establish.
 
 Weights are our judgement about what matters most to a small business. They are
 documented in `docs/decisions.md` and are open to disagreement. The grade
-exists to answer "what should I fix first" — not to be displayed as a badge, and
+exists to answer "what should I fix first" - not to be displayed as a badge, and
 not to be compared across tools that weigh things differently.

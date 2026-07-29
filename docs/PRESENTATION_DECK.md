@@ -1,11 +1,11 @@
-# Netgrade — Presentation Deck
+# Netgrade - Presentation Deck
 **Passive Security Posture Scanner for Small Businesses**  
 *Blueprint Hackathon 2026 Submission*
 
 ---
 
 ## Slide 1: Cover & Project Overview
-- **Title**: Netgrade — Passive Security Posture Scanner
+- **Title**: Netgrade - Passive Security Posture Scanner
 - **Tagline**: Turning complex, scary security jargon into plain-language actionable decisions for small business owners.
 - **Team**: Jayden Maans (Product & UX Lead) & Mike / Certifa (Engine & Concurrency Lead)
 - **Key Takeaway**: 70% of small businesses lack dedicated IT/security personnel. Netgrade delivers a 30-second passive posture check, audio briefing, and prioritized remediations with zero risk to target infrastructure.
@@ -83,7 +83,7 @@ graph TD
 | **User Experience** | 12 / 12 | Interactive loading states, spoken ElevenLabs audio, WCAG AA accessibility, mobile layout |
 | **Project Completion** | 12 / 12 | 100% test coverage, Docker ready, live 404/500 error pages, zero unhandled exceptions |
 | **Video Evaluation** | 6 / 6 | 2-5 min scripted video covering Problem Statement, Demo, and Tech Architecture |
-| **Total Score** | **54 / 54** | **Aim High — Complete & Production-Ready** |
+| **Total Score** | **54 / 54** | **Aim High - Complete & Production-Ready** |
 
 ---
 

@@ -55,7 +55,7 @@ graph TD
 
 ---
 
-## 🔒 Scope — 7 Passive Risk Checks + Scored Report
+## 🔒 Scope - 7 Passive Risk Checks + Scored Report
 
 | Check | What it Inspects | Why a Business Owner Cares |
 | :--- | :--- | :--- |
@@ -70,7 +70,7 @@ graph TD
 
 ---
 
-## 🚀 Quick Start — One-Command Run
+## 🚀 Quick Start - One-Command Run
 
 ### Option A: Local Run via Python
 ```bash

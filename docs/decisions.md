@@ -21,12 +21,12 @@ the domain being scanned. Scoring an unknown as a failure produces reports that
 are confidently wrong, which is the failure mode we care about most.
 
 **The cost, and what it forced.** A scan where almost everything errored would
-otherwise report a high grade on almost no evidence — start at 100, and if only
+otherwise report a high grade on almost no evidence - start at 100, and if only
 two checks can deduct, the result flatters a domain nobody could measure. So
 the grade is capped at C below four completed checks, and `checks_scored` is in
 the contract so a report can say "graded on 6 of 7".
 
-**The alternative** — scoring errors as failures — is simpler and needs no cap.
+**The alternative** - scoring errors as failures - is simpler and needs no cap.
 It is also wrong often enough to make the tool untrustworthy the first time
 someone scans a domain during a DNS blip.
 
@@ -37,7 +37,7 @@ by severity. `A ≥ 90`, `B ≥ 80`, `C ≥ 70`, `D ≥ 60`, otherwise `F`.
 
 Two reasons. It is one sentence to explain, which matters when the audience is
 a small-business owner. And the score moves in the direction a user expects
-when they fix something, which is what makes the fix-and-rescan loop work — a
+when they fix something, which is what makes the fix-and-rescan loop work - a
 ratio over completed checks can move *down* when a previously-errored check
 starts working, which is indefensible in a demo and worse in real use.
 
@@ -52,8 +52,8 @@ check returns `high` for no DMARC at all and `low` for DMARC at `p=none`,
 because those are different risks discovered by the same code.
 
 **The cost.** More branches in each check, and severity has to be assigned
-thoughtfully in every path rather than declared once. The alternative — a fixed
-weight per check — is simpler and produces meaningless scores, since it cannot
+thoughtfully in every path rather than declared once. The alternative - a fixed
+weight per check - is simpler and produces meaningless scores, since it cannot
 distinguish "no email protection whatsoever" from "protection configured but
 not yet enforcing".
 
@@ -76,8 +76,8 @@ Every other check is weighted purely by the severity of what it found.
 its own severity was medium, which meant a single missing
 Content-Security-Policy failed.
 
-Most sites have no CSP. Grading that the same as a missing DMARC policy — which
-is exploitable today rather than a missing layer of defence in depth — pushed
+Most sites have no CSP. Grading that the same as a missing DMARC policy - which
+is exploitable today rather than a missing layer of defence in depth - pushed
 otherwise-decent domains into a failing check and cost the grade its ability to
 discriminate. Two or more absent headers still fails: that is a pattern of them
 not being configured at all rather than one gap.
@@ -106,7 +106,7 @@ engine where a designer cannot adjust them.
 and reported as `xn--bcher-kva.de`.
 
 Rendering the Unicode form would let a homograph domain display in our own
-security report as the brand it is impersonating — a Cyrillic lookalike of a
+security report as the brand it is impersonating - a Cyrillic lookalike of a
 bank appearing as that bank, in a document telling someone whether to trust it.
 
 **The cost.** Less readable for legitimate international domains. A frontend
@@ -128,7 +128,7 @@ with a traceback so it surfaces as a bug rather than being absorbed silently.
 untouched, which is what lets shutdown work. This mattered concretely: a
 hand-rolled reimplementation of `asyncio.timeout` was briefly added for
 compatibility with an older Python, and it converted every cancellation into a
-timeout — including the scan deadline's own cancellation and shutdown. It was
+timeout - including the scan deadline's own cancellation and shutdown. It was
 unreachable on the version we ship, and removed.
 
 ## Two nested timeouts
@@ -136,7 +136,7 @@ unreachable on the version we ship, and removed.
 **The decision.** Each check has a budget; the whole scan has a 20-second
 deadline. Both.
 
-A per-check budget does not bound the total — a check can be slow without
+A per-check budget does not bound the total - a check can be slow without
 having timed out, and a user waiting on a page cares about the wall clock. When
 the deadline fires, finished work is kept and unfinished checks are cancelled
 and reported as "could not check". Partial results beat no results, and they
@@ -167,7 +167,7 @@ checked, and we would rather state the real number.
 **The decision.** One semaphore, 24 sockets, shared by every scan in the
 process rather than one per scan.
 
-Bounding the seven checks of a single scan would be theatre — seven tasks is
+Bounding the seven checks of a single scan would be theatre - seven tasks is
 not a load problem. The bound that matters is across concurrent users, where
 fifty simultaneous scans would otherwise open several hundred sockets.
 
@@ -180,14 +180,14 @@ explicit re-scan.
 
 Scans where nothing could be measured are **not** cached. That is a fact about a
 bad minute, not about the domain, and caching it would make a transient outage
-stick for the full TTL — the user who retries, as the report tells them to,
+stick for the full TTL - the user who retries, as the report tells them to,
 would get the same failure back instantly with nothing having been retried.
 
 ## Certificate parsing does not use `ssl.getpeercert`
 
 **The decision.** DER is parsed directly with `cryptography`.
 
-`ssl.getpeercert()` returns nothing useful on an unverified socket — which is
+`ssl.getpeercert()` returns nothing useful on an unverified socket - which is
 precisely the expired, self-signed and hostname-mismatched cases the check
 exists to catch. Verification is attempted first; if it fails, the connection is
 retried unverified purely to read what is being served, because telling a user
@@ -211,7 +211,7 @@ defaults are the conservative published values. Raising a limit for one
 deployment does not weaken what the documentation says an unconfigured instance
 does.
 
-A malformed value logs a warning and keeps the default — a typo in a platform
+A malformed value logs a warning and keeps the default - a typo in a platform
 variable should not take the service down. A comparison cost above the burst
 size *does* fail at startup, because it would 429 every comparison forever,
 which is a misconfiguration rather than a limit.
@@ -221,12 +221,12 @@ which is a misconfiguration rather than a limit.
 **Changed after being caught wrong twice.** The fixture is simultaneously the
 frontend's reference, the integration fixture, and the input the scoring tests
 assert against. It was hand-written, and two of seven entries disagreed with the
-code that would have produced them — a session cookie graded `medium` where the
+code that would have produced them - a session cookie graded `medium` where the
 cookie check says `high`, and a header finding graded `warn` where the header
 check says `fail`.
 
 The scoring tests could not catch it: they assert the declared score and
-ordering are consistent with the declared severities, and they were —
+ordering are consistent with the declared severities, and they were  - 
 consistently wrong. Entries are now regenerated by running the real check
 functions, and a consistency test replays each finding's own evidence through
 the logic meant to produce it.

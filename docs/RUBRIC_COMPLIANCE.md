@@ -1,4 +1,4 @@
-# Netgrade — Blueprint Hackathon Judging Rubric Self-Audit
+# Netgrade - Blueprint Hackathon Judging Rubric Self-Audit
 *Maximum Score Target: 54 / 54 Points*
 
 | Rubric Category | Max Points | Netgrade Self-Score | Key Evidence & Implementation References |
@@ -23,7 +23,7 @@
 | *Problem Statement* | 2 | 2 | Clear explanation of small business security gap (70% lack IT staff, traditional active scanners create jargon/fear). |
 | *Solution Demo* | 2 | 2 | Thorough live walkthrough of `netgrade.certifa.net`, audio playback, check remediations, and competitor comparison. |
 | *Technical Explanation* | 2 | 2 | Detailed breakdown of async fan-out, process semaphore, raw TLS DER parsing, and excluded-error scoring logic. |
-| **TOTAL SCORE** | **54** | **54 / 54** | **Aim High — Ready for Judging!** |
+| **TOTAL SCORE** | **54** | **54 / 54** | **Aim High - Ready for Judging!** |
 
 ---
 
