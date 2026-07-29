@@ -177,6 +177,19 @@ def _explain(assessment: _Assessment) -> str:
     """Explain the consequence of the most significant gap."""
     missing = set(assessment.missing)
 
+    if len(missing) >= 2:
+        # Explaining only the worst one reads as a mismatch when the summary
+        # has just said several are absent. What matters at this point is not
+        # any individual header but that none of them are being sent.
+        return (
+            "These headers are instructions to the visitor's browser to refuse a whole "
+            "class of attacks: staying on an encrypted connection, refusing to run "
+            "injected scripts, refusing to be framed by another site. None of them are "
+            "being sent, so the browser applies none of those protections. They are "
+            "configuration rather than code, which makes this among the cheapest "
+            "improvements available."
+        )
+
     if "content-security-policy" in missing:
         return (
             "A Content-Security-Policy tells the browser which scripts it is allowed to "
