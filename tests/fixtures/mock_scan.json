@@ -1,0 +1,35 @@
+{
+  "domain": "example-business.com",
+  "scanned_at": "2026-07-28T14:03:11Z",
+  "grade": "C",
+  "score": 61,
+  "checks": [
+    {
+      "id": "email_spoofing",
+      "title": "Email spoofing protection",
+      "status": "fail",
+      "severity": "high",
+      "summary": "No DMARC policy is published.",
+      "explanation": "Anyone can send email pretending to come from your domain, risking impersonation and phishing attacks.",
+      "fix": "Publish a DMARC record starting at p=none, then tighten to p=reject.",
+      "evidence": {
+        "dmarc_record": null,
+        "spf_record": "v=spf1 include:_spf.google.com ~all"
+      }
+    },
+    {
+      "id": "tls_config",
+      "title": "TLS/SSL configuration",
+      "status": "pass",
+      "severity": "low",
+      "summary": "Valid TLS 1.3 certificate detected.",
+      "explanation": "Your site enforces modern encrypted HTTPS connections with strong cipher suites.",
+      "fix": "Maintain auto-renewal for certificates.",
+      "evidence": {
+        "tls_version": "TLSv1.3",
+        "cipher": "TLS_AES_256_GCM_SHA384",
+        "days_remaining": 64
+      }
+    }
+  ]
+}

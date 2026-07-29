@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Netgrade - Passive Security Posture Scanner{% endblock %}</title>
+  <meta name="description" content="Passive security posture scanner for small businesses. Get a scored report across key risk checks with plain-language findings.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="navbar" role="banner">
+    <div class="nav-container">
+      <a href="/" class="logo" aria-label="Netgrade Home">
+        <span class="logo-icon" aria-hidden="true"></span>
+        <span>Netgrade</span>
+      </a>
+      <nav aria-label="Primary Navigation">
+        <ul class="nav-links">
+          <li><a href="/">Scanner</a></li>
+          <li><a href="/compare">Side-by-Side</a></li>
+          <li><a href="/sample-report">Sample Report</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer role="contentinfo">
+    <p>Netgrade &copy; 2026. Passive, read-only security posture scanner. Built for small business resilience.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Side-by-Side Domain Security Posture Comparison - Netgrade{% endblock %}
+
+{% block content %}
+<section style="margin-bottom: 2rem; text-align: center;">
+  <h1 style="font-size: 2.4rem; font-weight: 800; letter-spacing: -0.02em;">Side-by-Side Posture Comparison</h1>
+  <p style="color: var(--text-muted); font-size: 1.05rem;">Scan your domain against a competitor to benchmark risk posture across identical checks.</p>
+
+  <div class="scanner-form-box" style="max-width: 800px; margin: 2rem auto 0;">
+    <form action="/compare" method="GET" class="scanner-form" style="gap: 1rem;">
+      <div class="input-group">
+        <label for="domain1" style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem; text-align: left;">Primary Domain</label>
+        <input type="text" id="domain1" name="domain1" class="scanner-input" value="{{ domain1 or '' }}" placeholder="yourcompany.com" required>
+      </div>
+      <div class="input-group">
+        <label for="domain2" style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.25rem; text-align: left;">Competitor Domain</label>
+        <input type="text" id="domain2" name="domain2" class="scanner-input" value="{{ domain2 or '' }}" placeholder="competitor.com" required>
+      </div>
+      <div style="width: 100%; display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+        <button type="submit" class="btn-primary">Compare Domains</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% if report1 and report2 %}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-top: 2.5rem;">
+  <!-- Domain 1 Column -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+      <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800;">{{ report1.domain }}</h2>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Score: {{ report1.score }}/100</span>
+      </div>
+      <div class="grade-badge grade-{{ report1.grade }}" style="width: 60px; height: 60px; font-size: 1.8rem;">
+        {{ report1.grade }}
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      {% for check in report1.checks %}
+        <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; border-left: 3px solid var(--color-{{ check.status }});">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 0.95rem;">{{ check.title }}</strong>
+            <span class="badge badge-{{ check.status }}">{{ check.status }}</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">{{ check.summary }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Domain 2 Column -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.5rem;">
+      <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800;">{{ report2.domain }}</h2>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Score: {{ report2.score }}/100</span>
+      </div>
+      <div class="grade-badge grade-{{ report2.grade }}" style="width: 60px; height: 60px; font-size: 1.8rem;">
+        {{ report2.grade }}
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      {% for check in report2.checks %}
+        <div style="padding: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; border-left: 3px solid var(--color-{{ check.status }});">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong style="font-size: 0.95rem;">{{ check.title }}</strong>
+            <span class="badge badge-{{ check.status }}">{{ check.status }}</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">{{ check.summary }}</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
