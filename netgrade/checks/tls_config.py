@@ -24,7 +24,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import NameOID
 
-from netgrade.checks.base import Check
+from netgrade.checks.base import Check, error_result
 from netgrade.context import ScanContext
 from netgrade.models import CheckResult, CheckStatus, Severity
 
@@ -65,6 +65,26 @@ class _Handshake:
     verified: bool = False
     verification_error: str | None = None
 
+    #: A certificate was presented and verification rejected it.
+    #:
+    #: Distinct from ``verified=False``, which is also what an intentionally
+    #: unverified read returns. Conflating the two told a university with a
+    #: perfectly valid certificate that browsers did not trust it, because a
+    #: momentary network failure on the verifying attempt was followed by a
+    #: successful unverified one. Absence of proof of trust is not proof of
+    #: absence, and only this flag licenses saying so.
+    verification_failed: bool = False
+
+    #: Port 443 actively refused the connection. A finding: there is no HTTPS
+    #: here. Distinct from a timeout, which says only that we could not get an
+    #: answer, and which is ours to report as "could not check" rather than as
+    #: an accusation about somebody's server.
+    refused: bool = False
+
+    #: Why an attempt could not be completed, when that was neither a
+    #: verification failure nor a refusal.
+    unreachable: str | None = None
+
 
 async def run(domain: str, ctx: ScanContext) -> CheckResult:
     """Inspect the TLS configuration served on port 443."""
@@ -72,11 +92,21 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
     await ctx.assert_public_host(domain)
 
     handshake = await _connect(domain, ctx, verify=True)
-    if handshake.certificate is None:
-        # Verification failed before a certificate could be captured. Retry
-        # without verification purely to read what is being served, which is
-        # the only way to tell the user *why* their certificate is rejected.
+
+    if handshake.verification_failed:
+        # Verification rejected the certificate. Retry without verification
+        # purely to read what is being served, which is the only way to tell
+        # the user *why* theirs is rejected. The verdict is already decided;
+        # this only gathers the detail behind it.
         handshake = await _connect(domain, ctx, verify=False, previous=handshake)
+    elif handshake.unreachable and not handshake.refused:
+        # A transient failure on the verifying attempt. One more try, still
+        # verifying: falling back to an unverified read here is what produced
+        # "not trusted by browsers" for certificates that were fine.
+        handshake = await _connect(domain, ctx, verify=True)
+
+    if handshake.certificate is None and not handshake.refused:
+        return _unreachable(handshake.unreachable or "no certificate was presented")
 
     legacy = await _probe_legacy_protocols(domain, ctx)
     expiry = _expiry(handshake.certificate)
@@ -108,6 +138,23 @@ async def run(domain: str, ctx: ScanContext) -> CheckResult:
     )
 
 
+def _unreachable(detail: str) -> CheckResult:
+    """Report that the handshake could not be completed, blaming nobody.
+
+    A timeout or a reset says we could not get an answer. It does not say the
+    site has no HTTPS, and it certainly does not say the certificate is
+    untrusted. Reporting either would be an accusation built on our own
+    network conditions, which is the failure mode this whole engine is
+    arranged to avoid.
+    """
+    logger.info("TLS check could not complete: %s", detail)
+    return error_result(
+        CHECK,
+        summary="Could not check: the secure connection could not be completed.",
+        detail=detail,
+    )
+
+
 def _assess(
     handshake: _Handshake,
     expiry: datetime | None,
@@ -118,6 +165,9 @@ def _assess(
     days = _days_remaining(expiry)
 
     if handshake.certificate is None:
+        # Only reachable when the port actively refused us. An ambiguous
+        # failure returns an error result before assessment, because "we could
+        # not get an answer" and "this site has no HTTPS" are different claims.
         return (
             "fail",
             "critical",
@@ -144,7 +194,7 @@ def _assess(
             "refuse the connection outright when the name does not match.",
         )
 
-    if not handshake.verified:
+    if handshake.verification_failed:
         return (
             "fail",
             "high",
@@ -257,11 +307,27 @@ async def _connect(
             )
         except ssl.SSLCertVerificationError as exc:
             logger.info("%s certificate did not verify: %s", domain, exc.verify_message)
-            return _Handshake(verification_error=exc.verify_message or str(exc))
+            return _Handshake(
+                verification_error=exc.verify_message or str(exc),
+                verification_failed=True,
+            )
+        except ConnectionRefusedError as exc:
+            logger.info("%s refused the connection on port %d", domain, HTTPS_PORT)
+            return _Handshake(
+                refused=True,
+                verification_error=previous.verification_error if previous else None,
+                verification_failed=previous.verification_failed if previous else False,
+                unreachable=str(exc) or "connection refused",
+            )
         except (TimeoutError, OSError, ssl.SSLError) as exc:
+            # Says nothing about the certificate or the server's configuration.
+            # Carried as unreachable so the caller can report that we could not
+            # look, rather than reporting a finding we have no evidence for.
             logger.info("%s TLS connection failed: %s", domain, exc)
             return _Handshake(
                 verification_error=previous.verification_error if previous else None,
+                verification_failed=previous.verification_failed if previous else False,
+                unreachable=f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__,
             )
 
         try:

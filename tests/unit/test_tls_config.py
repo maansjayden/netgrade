@@ -134,11 +134,63 @@ def test_hostname_mismatch_is_critical():
 
 
 def test_untrusted_certificate_fails_high():
+    """Only when verification actually rejected it -- see the class below."""
     certificate = make_certificate()
-    handshake = _Handshake(protocol="TLSv1.3", certificate=certificate, verified=False)
+    handshake = _Handshake(
+        protocol="TLSv1.3",
+        certificate=certificate,
+        verified=False,
+        verification_failed=True,
+        verification_error="self signed certificate",
+    )
 
     status, severity, _, _ = _assess(handshake, certificate.not_valid_after_utc, True, ())
     assert (status, severity) == ("fail", "high")
+
+
+class TestTrustIsNotAssumedFromAnUnverifiedRead:
+    """A valid certificate must never be reported as untrusted.
+
+    The check reads the certificate a second time without verification when
+    verification has already failed, because that is the only way to explain
+    *why* it failed. `verified=False` is therefore also what a deliberate,
+    successful, unverified read returns -- and treating that as evidence of
+    untrustworthiness told a university with a perfectly good certificate that
+    browsers did not trust it, after a momentary network failure on the
+    verifying attempt.
+    """
+
+    def test_an_unverified_read_is_not_an_accusation(self) -> None:
+        certificate = make_certificate()
+        handshake = _Handshake(
+            protocol="TLSv1.3",
+            certificate=certificate,
+            verified=False,
+            verification_failed=False,
+        )
+
+        status, severity, summary, _ = _assess(
+            handshake, certificate.not_valid_after_utc, True, ()
+        )
+        assert "not trusted" not in summary
+        assert (status, severity) != ("fail", "high")
+
+    def test_only_a_real_verification_failure_says_untrusted(self) -> None:
+        certificate = make_certificate()
+        rejected = _Handshake(
+            protocol="TLSv1.3",
+            certificate=certificate,
+            verification_failed=True,
+            verification_error="unable to get local issuer certificate",
+        )
+        unverified = _Handshake(
+            protocol="TLSv1.3", certificate=certificate, verification_failed=False
+        )
+
+        assert "not trusted" in _assess(rejected, certificate.not_valid_after_utc, True, ())[2]
+        assert "not trusted" not in _assess(
+            unverified, certificate.not_valid_after_utc, True, ()
+        )[2]
 
 
 def test_imminent_expiry_outranks_legacy_protocols():

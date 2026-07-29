@@ -15,6 +15,7 @@ from typing import Annotated, Final
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from netgrade.context import DomainNotFoundError
 from netgrade.domains import InvalidDomainError
 from netgrade.models import ScanResult
 from netgrade.service import ScanService
@@ -108,6 +109,7 @@ DomainParam = Annotated[
     summary="Scan a domain",
     responses={
         400: {"description": "The input is not a domain this tool will scan."},
+        404: {"description": "The domain does not exist in DNS."},
         429: {"description": "Rate limited. Retry-After says when to return."},
     },
 )
@@ -127,6 +129,11 @@ async def scan_domain(
         return await _service(request).scan(domain, force=force)
     except InvalidDomainError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DomainNotFoundError as exc:
+        # A typo, not a posture. Reporting on a domain that does not exist
+        # would mean scoring seven "could not check" findings as a clean
+        # result, which reads as reassurance about nothing.
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get(
@@ -135,6 +142,7 @@ async def scan_domain(
     summary="Scan two domains concurrently",
     responses={
         400: {"description": "One of the inputs is not a domain this tool will scan."},
+        404: {"description": "One of the domains does not exist in DNS."},
         429: {"description": "Rate limited. Retry-After says when to return."},
     },
 )
@@ -154,4 +162,6 @@ async def compare_domains(
         first, second = await _service(request).compare(domain1, domain2, force=force)
     except InvalidDomainError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DomainNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return [first, second]

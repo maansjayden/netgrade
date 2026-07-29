@@ -20,7 +20,7 @@ import pytest
 
 from netgrade.checks.base import Check
 from netgrade.checks.registry import REGISTRY
-from netgrade.context import ScanContext, Timeouts
+from netgrade.context import DomainNotFoundError, ScanContext, Timeouts
 from netgrade.domains import InvalidDomainError
 from netgrade.models import CHECK_IDS, ScanResult
 from netgrade.orchestrator import scan
@@ -98,55 +98,68 @@ def assert_is_a_usable_report(result: ScanResult) -> None:
 
 
 class TestDomainThatDoesNotExist:
-    """A typo must not be reported as seven security failures."""
+    """A typo must not produce a report at all.
 
-    async def test_it_still_returns_a_report(self) -> None:
+    Previously every check independently discovered the domain was absent and
+    reported "could not check", which scored 100 out of 100 -- nothing found
+    wrong, because nothing was looked at. The grade was capped to C, but a
+    perfect score beside a domain name still reads as reassurance, and
+    reassuring somebody about a domain that does not exist is the worst
+    failure this tool has.
+    """
+
+    async def test_it_refuses_rather_than_reporting(self) -> None:
         ctx = context_with({}, refuse_connection)
         try:
-            result = await scan("no-such-domain-here-9f3a2b.com", ctx)
+            with pytest.raises(DomainNotFoundError):
+                await scan("no-such-domain-here-9f3a2b.com", ctx)
+        finally:
+            await ctx.aclose()
+
+    async def test_the_message_names_the_problem(self) -> None:
+        ctx = context_with({}, refuse_connection)
+        try:
+            with pytest.raises(DomainNotFoundError) as caught:
+                await scan("no-such-domain-here-9f3a2b.com", ctx)
+        finally:
+            await ctx.aclose()
+
+        assert "does not exist" in str(caught.value)
+
+    async def test_a_domain_with_no_address_record_still_scans(self) -> None:
+        """Exists but publishes no A record. Ordinary, and not a typo.
+
+        NXDOMAIN is the only answer treated as absence. A domain answering
+        NoAnswer is a real domain with a real configuration worth reporting on.
+        """
+        records: DnsRecords = {"mail-only-domain.com": {"MX": ["10 mx.example.com."]}}
+        ctx = context_with(records, refuse_connection)
+        try:
+            result = await scan("mail-only-domain.com", ctx)
         finally:
             await ctx.aclose()
 
         assert_is_a_usable_report(result)
 
-    async def test_every_check_reports_that_it_could_not_look(self) -> None:
-        ctx = context_with({}, refuse_connection)
+    async def test_a_resolver_failure_is_not_treated_as_absence(self) -> None:
+        """"Could not ask" is not "there is no such domain"."""
+
+        class FailingResolver(StubResolver):
+            async def resolve(self, *args: object, **kwargs: object):
+                raise dns.resolver.NoNameservers()
+
+        ctx = ScanContext(
+            http=httpx.AsyncClient(transport=httpx.MockTransport(refuse_connection)),
+            resolver=FailingResolver({}),  # type: ignore[arg-type]
+            limiter=asyncio.Semaphore(8),
+            timeouts=FAST,
+        )
         try:
-            result = await scan("no-such-domain-here-9f3a2b.com", ctx)
+            result = await scan("dns-is-broken-today.com", ctx)
         finally:
             await ctx.aclose()
 
-        assert all(check.status == "error" for check in result.checks)
-        assert result.checks_scored == 0
-
-    async def test_it_does_not_earn_an_f(self) -> None:
-        """The ruling this engine is built around: an unknown is not a failure."""
-        ctx = context_with({}, refuse_connection)
-        try:
-            result = await scan("no-such-domain-here-9f3a2b.com", ctx)
-        finally:
-            await ctx.aclose()
-
-        assert result.grade != "F"
-
-    async def test_the_grade_is_capped_rather_than_flattering(self) -> None:
-        """Nor an A, on the strength of having measured nothing at all."""
-        ctx = context_with({}, refuse_connection)
-        try:
-            result = await scan("no-such-domain-here-9f3a2b.com", ctx)
-        finally:
-            await ctx.aclose()
-
-        assert result.grade == "C"
-
-    async def test_the_user_is_told_the_domain_does_not_exist(self) -> None:
-        ctx = context_with({}, refuse_connection)
-        try:
-            result = await scan("no-such-domain-here-9f3a2b.com", ctx)
-        finally:
-            await ctx.aclose()
-
-        assert any("does not exist" in check.summary for check in result.checks)
+        assert_is_a_usable_report(result)
 
 
 class TestHostThatRefusesConnections:
@@ -226,7 +239,7 @@ class TestInternationalisedDomains:
         Rendering the Unicode form would let a Cyrillic lookalike appear in our
         own report as the brand it is impersonating.
         """
-        records: DnsRecords = {"xn--80ak6aa92e.com": {"A": [PUBLIC_IP]}}
+        records: DnsRecords = {"xn--pple-43d.com": {"A": [PUBLIC_IP]}}
         ctx = context_with(records, refuse_connection)
         try:
             result = await scan("аpple.com", ctx)  # noqa: RUF001 - Cyrillic a, deliberately
@@ -328,13 +341,13 @@ class TestServicesThatNeverAnswer:
         class SlowResolver(StubResolver):
             async def resolve(self, *args: object, **kwargs: object):
                 await asyncio.sleep(30)
-                raise AssertionError("unreachable")
+                raise dns.resolver.LifetimeTimeout(timeout=30.0, errors=[])
 
         ctx = ScanContext(
             http=httpx.AsyncClient(transport=httpx.MockTransport(refuse_connection)),
             resolver=SlowResolver({}),  # type: ignore[arg-type]
             limiter=asyncio.Semaphore(8),
-            timeouts=Timeouts(check=0.2),
+            timeouts=Timeouts(check=0.2, dns=0.2),
         )
 
         loop = asyncio.get_running_loop()
@@ -510,23 +523,36 @@ class TestOneBrokenCheckDoesNotBreakTheScan:
 class TestTheServiceSurvivesAllOfIt:
     """The same guarantees through the layer the API actually calls."""
 
-    async def test_an_unreachable_domain_is_not_cached(self) -> None:
-        """A bad minute must not stick to a domain for the whole TTL."""
-        ctx = context_with({}, refuse_connection)
+    async def test_a_partial_scan_is_still_worth_caching(self) -> None:
+        """The domain resolves, so the DNS-based checks produce real findings.
+
+        Refusing to cache anything with an errored check would throw away work
+        that is genuinely useful -- the email and DNS answers are worth having
+        even when the web server is down. Only a scan that learned nothing at
+        all is withheld, and that rule is exercised in the cache's own tests.
+        """
+        records: DnsRecords = {"exists-but-dead.com": {"A": [PUBLIC_IP]}}
+        ctx = context_with(records, refuse_connection)
         service = ScanService(ctx=ctx, cache=_CountingCache())
         try:
-            await service.scan("no-such-domain-9f3a2b.com")
-            second = await service.scan("no-such-domain-9f3a2b.com")
+            first = await service.scan("exists-but-dead.com")
+            second = await service.scan("exists-but-dead.com")
         finally:
             await service.aclose()
 
-        assert second.cached is False
+        assert first.checks_scored > 0
+        assert first.cached is False
+        assert second.cached is True
 
     async def test_comparing_two_broken_domains_still_returns_two_reports(self) -> None:
-        ctx = context_with({}, refuse_connection)
+        records: DnsRecords = {
+            "dead-one.com": {"A": [PUBLIC_IP]},
+            "dead-two.com": {"A": [PUBLIC_IP]},
+        }
+        ctx = context_with(records, refuse_connection)
         service = ScanService(ctx=ctx, cache=_CountingCache())
         try:
-            first, second = await service.compare("nope-one-9f3a2b.com", "nope-two-9f3a2b.com")
+            first, second = await service.compare("dead-one.com", "dead-two.com")
         finally:
             await service.aclose()
 

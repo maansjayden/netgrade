@@ -24,9 +24,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Final
 
+import dns.exception
+
 from netgrade.checks.base import Check, error_result, execute
 from netgrade.checks.registry import REGISTRY
-from netgrade.context import ScanContext
+from netgrade.context import DomainNotFoundError, ScanContext
 from netgrade.domains import normalise_domain
 from netgrade.models import CheckResult, ScanResult
 from netgrade.scoring import prioritise, score_scan
@@ -64,14 +66,18 @@ async def scan(
         A ScanResult whose checks are ordered by remediation priority.
 
     Raises:
-        InvalidDomainError: if the input is not a domain we will scan. This is
-            the one failure that is not returned as data: it is a fault in the
-            request rather than a finding about a domain, so the API layer can
-            answer 400 instead of rendering a report about nothing.
+        InvalidDomainError: if the input is not a domain we will scan.
+        DomainNotFoundError: if the domain does not exist in DNS.
+
+    Neither is returned as data. Both are faults in the request rather than
+    findings about a domain, so the API can answer 400 or 404 instead of
+    rendering a report about nothing. Every other failure -- a host that
+    refuses, a service that times out, a log that is down -- is data.
     """
     normalised = normalise_domain(domain)
-    started = time.perf_counter()
+    await _assert_scannable(normalised, ctx)
 
+    started = time.perf_counter()
     results = await _run_all(normalised, ctx, checks=checks, deadline=deadline)
     ordered = prioritise(results)
     score = score_scan(ordered)
@@ -96,6 +102,45 @@ async def scan(
         checks=ordered,
         checks_scored=score.checks_scored,
     )
+
+
+async def _assert_scannable(domain: str, ctx: ScanContext) -> None:
+    """Refuse to report on a domain that does not exist.
+
+    A typo is not a security posture. Without this, every check independently
+    discovers the domain is absent, each reports "could not check", and the
+    result is a report with a score of 100 out of 100 -- because nothing was
+    found wrong, because nothing was looked at. The grade is capped, but a
+    perfect score next to a domain name still reads as reassurance, and
+    reassuring somebody about a domain that does not exist is the worst
+    failure this tool has.
+
+    Raised rather than returned as data, for the same reason malformed input
+    is: it is a fault in the request, not a finding about a domain, and the
+    API can answer 404 instead of rendering a report about nothing.
+
+    Only NXDOMAIN counts. A resolver that times out has not established that
+    the domain is absent, so the scan proceeds and the checks report honestly
+    that they could not look.
+
+    Bounded by its own budget. It runs before the checks and therefore outside
+    the scan deadline, so an unbounded lookup here would let a slow resolver
+    hold the whole request open past the ceiling the deadline exists to
+    enforce.
+    """
+    try:
+        async with asyncio.timeout(ctx.timeouts.dns):
+            await ctx.assert_domain_exists(domain)
+    except DomainNotFoundError:
+        logger.info("refusing to scan %s: no such domain", domain)
+        raise
+    except (TimeoutError, dns.exception.DNSException) as exc:
+        logger.warning(
+            "could not confirm %s exists (%s: %s); scanning anyway",
+            domain,
+            type(exc).__name__,
+            exc,
+        )
 
 
 async def _run_all(
