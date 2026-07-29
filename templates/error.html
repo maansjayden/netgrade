@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Netgrade{% endblock %}
+
+{% block content %}
+<section class="hero" style="max-width: 650px; margin: 3rem auto;">
+  <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--color-fail); color: var(--color-fail); font-size: 1.8rem; font-weight: 900; margin-bottom: 1.5rem;">
+    {{ status_code or '!' }}
+  </div>
+
+  <h1 style="font-size: 2.2rem; margin-bottom: 0.75rem;">{{ title }}</h1>
+  <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2rem; line-height: 1.6;">
+    {{ message }}
+  </p>
+
+  <div class="scanner-form-box">
+    <form action="/scan" method="GET" class="scanner-form" role="search" aria-label="Retry Domain Security Scan">
+      <div class="input-group">
+        <label for="domain-input-error" class="sr-only">Domain Name</label>
+        <input 
+          type="text" 
+          id="domain-input-error" 
+          name="domain" 
+          class="scanner-input" 
+          placeholder="e.g. example.com or mybusiness.nl" 
+          required
+          autofocus
+        />
+      </div>
+      <button type="submit" class="btn-primary">
+        <span>Try Again</span>
+      </button>
+    </form>
+  </div>
+
+  <div style="margin-top: 1.5rem;">
+    <a href="/" style="color: var(--accent-cyan); text-decoration: none; font-size: 0.95rem; font-weight: 600;">&larr; Back to Home</a>
+  </div>
+</section>
+{% endblock %}
