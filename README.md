@@ -4,7 +4,7 @@
 *Blueprint Hackathon 2026 Submission*
 
 [![Live Site](https://img.shields.io/badge/Live%20Demo-netgrade.certifa.net-06b6d4?style=for-the-badge&logo=fastapi)](https://netgrade.certifa.net)
-[![Tests](https://img.shields.io/badge/Pytest-443%20Passed-10b981?style=for-the-badge&logo=pytest)](https://netgrade.certifa.net)
+[![Tests](https://img.shields.io/badge/Pytest-450%20Passed-10b981?style=for-the-badge&logo=pytest)](https://netgrade.certifa.net)
 [![Rubric Score](https://img.shields.io/badge/Rubric%20Score-48%2F54%20Claimed-3b82f6?style=for-the-badge)](docs/RUBRIC_COMPLIANCE.md)
 
 Enter any domain, get a scored security posture report across 7 passive risk checks with plain-language findings, spoken ElevenLabs audio briefings, anti-spam loading states, and side-by-side competitor posture comparisons.
@@ -104,7 +104,7 @@ Access at [http://localhost:8000](http://localhost:8000).
 
 ## 🧪 Testing Suite
 
-Netgrade includes a comprehensive Pytest test suite with **443 passing unit and integration tests**:
+Netgrade includes a comprehensive Pytest test suite with **450 passing unit and integration tests**:
 
 ```bash
 .\.venv\Scripts\pytest -v
@@ -137,5 +137,5 @@ Tests cover scoring logic, check isolation, async orchestrator fan-out, token-bu
   - WCAG AA Accessibility Compliance, ARIA Roles & Keyboard Navigation
   - ElevenLabs Spoken AI Audio Briefing Integration
   - Dynamic Anti-Spam Submission Guard & Real-Time Scan Step Overlay
-  - Comprehensive Pytest Suite (**443 Passing Tests**) & Edge Case Verification
+  - Comprehensive Pytest Suite (**450 Passing Tests**) & Edge Case Verification
   - Docker Deployment Scaffolding & Hackathon Documentation

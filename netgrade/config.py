@@ -35,6 +35,15 @@ ENV_TRUST_CLOUDFLARE: Final = "NETGRADE_TRUST_CLOUDFLARE"
 #: Log the client key each request resolves to. Off by default.
 ENV_DEBUG_CLIENT_KEY: Final = "NETGRADE_DEBUG_CLIENT_KEY"
 
+#: Optional API token for Cert Spotter, the certificate transparency fallback.
+#: Read by checks.cert_history rather than parsed into Settings: it is a
+#: credential the check either has or does not, with no validation to do and no
+#: default worth logging about. Named here so every environment variable this
+#: application reads is listed in one file.
+#: S105 is suppressed below because this is the *name* of an environment
+#: variable, not a credential. The token itself never appears in the source.
+ENV_CERTSPOTTER_TOKEN: Final = "NETGRADE_CERTSPOTTER_TOKEN"  # noqa: S105
+
 
 @dataclass(frozen=True, slots=True)
 class Settings:

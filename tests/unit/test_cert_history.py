@@ -9,14 +9,17 @@ import pytest
 
 from netgrade.checks.cert_history import (
     _assess,
+    _cert_spotter_headers,
     _entry_from_cert_spotter,
     _entry_from_crt_sh,
     _fetch_entries,
+    _get_json,
     _has_expired,
     _issuer_label,
     _parse_timestamp,
     _summarise,
 )
+from netgrade.config import ENV_CERTSPOTTER_TOKEN
 from netgrade.context import ScanContext
 
 
@@ -277,3 +280,101 @@ class TestFallingBackBetweenSources:
             await ctx.aclose()
 
         assert source == "Cert Spotter"
+
+
+class TestCertSpotterAuthentication:
+    """Cert Spotter rate limits per source address, and the unauthenticated
+    ceiling is low enough that a dozen scans in a minute exhausts it -- which
+    reports "could not check" to everyone sharing our address, including
+    somebody trying the live site for themselves. A free token raises it.
+
+    Reliability here is not something to arrange in advance for a demo; it has
+    to hold for whoever arrives next.
+    """
+
+    @staticmethod
+    def context_answering(handler) -> ScanContext:
+        return ScanContext(
+            http=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+            resolver=None,  # type: ignore[arg-type]
+            limiter=asyncio.Semaphore(4),
+        )
+
+    def test_no_token_sends_no_authorization(self, monkeypatch) -> None:
+        monkeypatch.delenv(ENV_CERTSPOTTER_TOKEN, raising=False)
+        assert "Authorization" not in _cert_spotter_headers()
+
+    def test_a_token_is_sent_as_a_bearer_credential(self, monkeypatch) -> None:
+        monkeypatch.setenv(ENV_CERTSPOTTER_TOKEN, "tok_abc123")
+        assert _cert_spotter_headers()["Authorization"] == "Bearer tok_abc123"
+
+    def test_a_blank_token_is_treated_as_absent(self, monkeypatch) -> None:
+        """An unset Railway variable arrives as an empty string, and sending
+        "Bearer " would be rejected outright rather than falling back."""
+        monkeypatch.setenv(ENV_CERTSPOTTER_TOKEN, "   ")
+        assert "Authorization" not in _cert_spotter_headers()
+
+    def test_the_accept_header_survives_authentication(self, monkeypatch) -> None:
+        monkeypatch.setenv(ENV_CERTSPOTTER_TOKEN, "tok_abc123")
+        assert _cert_spotter_headers()["Accept"] == "application/json"
+
+    async def test_the_token_reaches_the_request(self, monkeypatch) -> None:
+        monkeypatch.setenv(ENV_CERTSPOTTER_TOKEN, "tok_abc123")
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("authorization"))
+            if request.url.host == "crt.sh":
+                return httpx.Response(502)
+            return httpx.Response(200, json=[])
+
+        ctx = self.context_answering(handler)
+        try:
+            await _fetch_entries("example.com", ctx)
+        finally:
+            await ctx.aclose()
+
+        # crt.sh is asked first and unauthenticated; the token is Cert
+        # Spotter's and must not be sent to anyone else.
+        assert seen == [None, None, "Bearer tok_abc123"]
+
+
+class TestRateLimitsAreNotRetried:
+    async def test_a_429_is_requested_once(self) -> None:
+        """Retrying a rate limit makes it worse. 429 is not a transient server
+        error and must not be treated as one."""
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(429, headers={"Retry-After": "65"}, json={"code": "rate_limited"})
+
+        ctx = TestCertSpotterAuthentication.context_answering(handler)
+        try:
+            with pytest.raises(httpx.HTTPStatusError) as caught:
+                await _get_json("https://api.certspotter.com/v1/issuances", "Cert Spotter", ctx)
+        finally:
+            await ctx.aclose()
+
+        assert attempts == 1, f"a rate limit was retried {attempts} times"
+        assert caught.value.response.status_code == 429
+
+    async def test_a_502_still_is_retried(self) -> None:
+        """The contrast that makes the above meaningful: a server error is
+        transient and worth one more attempt."""
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(502)
+
+        ctx = TestCertSpotterAuthentication.context_answering(handler)
+        try:
+            with pytest.raises(httpx.HTTPStatusError):
+                await _get_json("https://crt.sh/", "crt.sh", ctx)
+        finally:
+            await ctx.aclose()
+
+        assert attempts == 2

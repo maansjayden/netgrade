@@ -18,7 +18,7 @@ points pending recording.*
 | *User Flow* | 4 | 4 | Frictionless domain input, plain-language FAQ guide ("What We Scan & Why"), instant 30s audio briefing, zero-jargon remediations, direct competitor comparison. |
 | **Project Completion** | **12** | **12 / 12** | |
 | *Feature Completeness* | 4 | 4 | All planned features (7 risk checks, audio briefing, score calculation, competitor compare, error pages) 100% functional. |
-| *Testing* | 4 | 4 | Comprehensive Pytest suite with **443 passing tests** (`pytest -v`) across scoring, checks, orchestrator, middleware, and error routes. |
+| *Testing* | 4 | 4 | Comprehensive Pytest suite with **450 passing tests** (`pytest -v`) across scoring, checks, orchestrator, middleware, and error routes. |
 | *Deployment* | 4 | 4 | Production deployment at `https://netgrade.certifa.net`, Docker containerized with `Dockerfile` and `docker-compose.yml`. |
 | **Video Evaluation** | **6** | **not yet recorded** | |
 | *Problem Statement* | 2 | pending | Scripted in `docs/DEMO_VIDEO_SCRIPT.md`: small business security gap (70% lack IT staff, traditional active scanners create jargon/fear). |
@@ -41,5 +41,5 @@ points pending recording.*
   - WCAG AA Accessibility Compliance, ARIA Roles & Keyboard Navigation
   - ElevenLabs Spoken AI Audio Briefing Integration
   - Dynamic Form Loading Indicators & Step Status Overlay
-  - Comprehensive Pytest Suite (443 Passing Tests) & Edge Case Verification
+  - Comprehensive Pytest Suite (450 Passing Tests) & Edge Case Verification
   - Docker Deployment Scaffolding & Hackathon Documentation

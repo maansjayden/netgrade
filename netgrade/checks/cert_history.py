@@ -18,6 +18,7 @@ than counted as a pass.
 """
 
 import logging
+import os
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -26,6 +27,7 @@ from typing import Any, Final
 import httpx
 
 from netgrade.checks.base import Check, error_result
+from netgrade.config import ENV_CERTSPOTTER_TOKEN
 from netgrade.context import ScanContext
 from netgrade.models import CheckResult, CheckStatus, Severity
 
@@ -266,7 +268,12 @@ async def _fetch_cert_spotter(domain: str, ctx: ScanContext) -> list[_Entry]:
     the two sources would answer the same question differently and the count
     would jump depending on which one happened to be up.
     """
-    payload = await _get_json(_CERT_SPOTTER_URL.format(domain=domain), _CERT_SPOTTER, ctx)
+    payload = await _get_json(
+        _CERT_SPOTTER_URL.format(domain=domain),
+        _CERT_SPOTTER,
+        ctx,
+        headers=_cert_spotter_headers(),
+    )
     now = datetime.now(UTC)
     return [
         _entry_from_cert_spotter(record)
@@ -295,15 +302,54 @@ def _entry_from_cert_spotter(record: dict[str, Any]) -> _Entry:
     )
 
 
-async def _get_json(url: str, source: str, ctx: ScanContext) -> list[Any]:
+def _cert_spotter_headers() -> dict[str, str]:
+    """Authenticate to Cert Spotter when a token is configured.
+
+    Cert Spotter answers unauthenticated requests, but rate limits them per
+    source address, and the ceiling is low enough that a handful of scans in a
+    minute exhausts it -- which then reports "could not check" to everyone
+    sharing our address, including someone trying the live site for themselves.
+    A free token raises that ceiling.
+
+    Read from the environment on each call rather than captured at import, so
+    setting it does not require a rebuild, only a restart. Absent or blank, the
+    request still goes out unauthenticated: a low limit beats no second source.
+    """
+    headers = {"Accept": "application/json"}
+    token = os.getenv(ENV_CERTSPOTTER_TOKEN, "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+async def _get_json(
+    url: str,
+    source: str,
+    ctx: ScanContext,
+    headers: dict[str, str] | None = None,
+) -> list[Any]:
     """Fetch a JSON array, retrying once past a transient server error."""
     last_error: httpx.HTTPStatusError | None = None
+    request_headers = headers or {"Accept": "application/json"}
 
     for attempt in range(_RETRIES + 1):
         async with ctx.limiter:
             response = await ctx.http.get(
-                url, timeout=_REQUEST_TIMEOUT, headers={"Accept": "application/json"}
+                url, timeout=_REQUEST_TIMEOUT, headers=request_headers
             )
+        # A rate limit is not a transient server error and retrying it makes it
+        # worse, so it breaks out here with the rest of the 4xx family and is
+        # reported below with the wait the service asked for.
+        if response.status_code == httpx.codes.TOO_MANY_REQUESTS:
+            logger.warning(
+                "%s rate limited us; it asks for %s seconds. %s",
+                source,
+                response.headers.get("retry-after", "an unspecified number of"),
+                "A token is configured."
+                if "Authorization" in request_headers
+                else f"No token configured; set {ENV_CERTSPOTTER_TOKEN} to raise the limit.",
+            )
+            break
         if not response.is_server_error:
             break
         last_error = httpx.HTTPStatusError(
