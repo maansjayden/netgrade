@@ -3,7 +3,7 @@
   "scanned_at": "2026-07-28T14:03:11Z",
   "grade": "F",
   "score": 42,
-  "checks_scored": 6,
+  "checks_scored": 7,
   "cached": false,
   "checks": [
     {
@@ -112,16 +112,27 @@
     {
       "id": "cert_history",
       "title": "Certificate history",
-      "status": "error",
+      "status": "pass",
       "severity": "info",
-      "summary": "Could not check: the certificate transparency log did not respond in time.",
-      "explanation": "This check reads public certificate transparency logs to find subdomains that were issued certificates and may have been forgotten. The log service was unreachable, so nothing can be said either way.",
-      "fix": "No action needed from you. Re-run the scan later; this check depends on an external public service.",
-      "duration_ms": 8003,
+      "summary": "2 unexpired certificates across 3 hostnames.",
+      "explanation": "These logs are public and searchable by anyone, which is what makes them useful to an attacker looking for hostnames you have not advertised. The list here is short enough to review by eye.",
+      "fix": "No action needed. Certificate transparency is public, so it is worth occasionally checking this list for names you do not recognise.",
+      "duration_ms": 812,
       "evidence": {
-        "source": "crt.sh",
-        "error": "timeout after 8.0s",
-        "certificates_found": null
+        "source": "Cert Spotter",
+        "certificates_found": 2,
+        "distinct_names": 3,
+        "names": [
+          "mail.sample-business.nl",
+          "sample-business.nl",
+          "www.sample-business.nl"
+        ],
+        "names_truncated": false,
+        "wildcard_names": [],
+        "issuers": [
+          "Let's Encrypt"
+        ],
+        "most_recent_issue": "2026-06-02T10:03:55Z"
       }
     },
     {

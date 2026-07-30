@@ -51,10 +51,14 @@ _MOCK_SCAN: Final = _load_fixture()
     response_model=ScanResult,
     summary="Fixed example scan result",
     description=(
-        "Returns a representative scan result with a mix of pass, warn, fail "
-        "and error findings. The data is illustrative and describes no real "
-        "domain. Build against this while the engine is being written; the "
-        "shape is identical to the live scan endpoint."
+        "Returns a representative scan result with a mix of pass, warn and "
+        "fail findings. The data is illustrative and describes no real domain. "
+        "Build against this while the engine is being written; the shape is "
+        "identical to the live scan endpoint. Note that a live scan can also "
+        "return status \"error\" for a check that could not run, which is "
+        "excluded from the score rather than counted as a failure; the fixture "
+        "no longer carries one, because it doubles as the sample report a "
+        "person reads."
     ),
 )
 async def mock_scan(
