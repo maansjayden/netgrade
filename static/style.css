@@ -606,16 +606,31 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-main);
   letter-spacing: -0.02em;
 }
-/* Deliberately one column. Two columns fit and are 36% shorter closed, but an
-   accordion in a grid expands into a tall row and leaves a hole beside the open
-   item, then displaces everything below it. One column expands downwards only,
-   which is what a reader expects when they click a question. */
+/* Two columns of independent stacks, not one grid of items. Putting the items
+   straight into a two-column grid looks right until somebody opens one: the
+   shared row grows to fit the tallest cell and leaves a hole beside the open
+   answer. Giving each column its own flex stack means an answer pushes only
+   what is below it in that column, and the other column never moves.
+   align-items: start keeps the shorter column from being stretched to match. */
 .faq-accordion {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
   gap: 0.6rem;
   max-width: 880px;
   margin: 0 auto;
+}
+.faq-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+@media (min-width: 900px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem 1.25rem;
+    max-width: none;
+  }
 }
 .faq-item {
   background: var(--bg-card);

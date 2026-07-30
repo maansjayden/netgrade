@@ -54,7 +54,12 @@
 <section class="faq-section" aria-labelledby="faq-title">
   <h2 id="faq-title" class="faq-title">Plain-Language Guide - What We Scan & Why</h2>
   
+  {# Two columns rather than one list, each a self-contained stack. Opening an
+     answer then pushes only what is below it in its own column, instead of
+     stretching a shared grid row and leaving a hole beside it. On narrow
+     screens the columns stack and the six read in order. #}
   <div class="faq-accordion">
+   <div class="faq-column">
     <details class="faq-item">
       <summary class="faq-summary">
         <span>What is Netgrade and why is it "passive"?</span>
@@ -84,7 +89,9 @@
         <p>Security headers are instruction cards your website sends to a visitor's web browser (like Chrome or Safari). They tell the browser to block common attacks like clickjacking (invisible fake buttons) or stealing user login cookies.</p>
       </div>
     </details>
+   </div>
 
+   <div class="faq-column">
     <details class="faq-item">
       <summary class="faq-summary">
         <span>What does my Score (0-100) and Grade (A-F) mean?</span>
@@ -114,6 +121,7 @@
         <p>We use ElevenLabs AI voice synthesis to convert your technical security findings into a 30-second spoken summary. Instead of deciphering technical logs, business owners can listen to their top risks on their phone while on the go.</p>
       </div>
     </details>
+   </div>
   </div>
 </section>
 {% endblock %}
