@@ -613,6 +613,19 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 850px;
   margin: 0 auto;
 }
+
+/* Two columns once there is room for two comfortable measures. Full width so
+   the guide lines up with the cards above instead of stepping in 300px, and
+   align-items: start so opening one answer does not stretch its neighbour. */
+@media (min-width: 900px) {
+  .faq-accordion {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    gap: 1rem 1.25rem;
+    max-width: none;
+  }
+}
 .faq-item {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
