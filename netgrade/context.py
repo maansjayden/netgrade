@@ -104,7 +104,12 @@ class ScanContext:
     #: instead of two -- politeness toward a host that did not ask to be
     #: scanned, and a decision the modules do not have to know about.
     _responses: dict[str, HttpResult] = field(default_factory=dict)
-    _address_cache: dict[str, bool] = field(default_factory=dict)
+
+    #: Vetted addresses per host, or None for a host that was refused. Holds
+    #: the addresses rather than a yes/no because fetch connects to one of
+    #: them directly; re-resolving at connect time is what let the HTTP checks
+    #: reach a different server than the DNS checks vetted.
+    _address_cache: dict[str, list[str] | None] = field(default_factory=dict)
     _existence_cache: dict[str, bool] = field(default_factory=dict)
 
     @classmethod
@@ -194,6 +199,11 @@ class ScanContext:
     async def fetch(self, url: str, *, method: str = "GET") -> HttpResult:
         """Request a URL, following redirects one vetted hop at a time.
 
+        The connection is pinned to an address this scanner resolved itself,
+        with the hostname carried in the Host header and in SNI. Letting the
+        transport re-resolve the name would mean the address that was vetted
+        and the address that was contacted need not be the same one.
+
         Raises:
             BlockedAddressError: if any hop resolves outside public address space.
             httpx.HTTPError: on transport failure.
@@ -207,11 +217,20 @@ class ScanContext:
         current = url
 
         for _ in range(MAX_REDIRECTS + 1):
-            await self.assert_public_host(httpx.URL(current).host)
+            parsed = httpx.URL(current)
+            addresses = await self.assert_public_host(parsed.host)
 
             async with self.limiter:
-                request = self.http.build_request(method, current)
-                response = await self.http.send(request, stream=True)
+                # IPv4 first: egress is not guaranteed to have a v6 route, and a
+                # host that answers on both would otherwise be unreachable here
+                # for a reason that has nothing to do with its security posture.
+                address = next((a for a in addresses if ":" not in a), addresses[0])
+                request = self.http.build_request(
+                    method, parsed.copy_with(host=address), headers={"Host": parsed.host}
+                )
+                response = await self.http.send(
+                    request, stream=True, extensions={"sni_hostname": parsed.host}
+                )
                 try:
                     body = await _read_capped(response)
                 finally:
@@ -220,7 +239,9 @@ class ScanContext:
             location = response.headers.get("location")
             if response.is_redirect and location:
                 chain.append(current)
-                current = str(response.url.join(location))
+                # Join against the name, not response.url, which is now the
+                # address form and would send the next hop to a bare IP.
+                current = str(parsed.join(location))
                 continue
 
             result = HttpResult(
@@ -247,36 +268,39 @@ class ScanContext:
             addresses.extend(record.address for record in answer)
         return addresses
 
-    async def assert_public_host(self, host: str | None) -> None:
-        """Refuse to send traffic to anything not publicly routable.
+    async def assert_public_host(self, host: str | None) -> list[str]:
+        """Vet a host and return the addresses the request may be sent to.
 
         The scanner fetches URLs derived from user input, which is the shape of
         a server-side request forgery primitive. Checking here means a domain
         whose A record points at 127.0.0.1 or at a cloud metadata endpoint is
         refused before a connection is opened.
 
-        This is a pre-flight check and the name is resolved again by the
-        connection itself, so a sufficiently fast DNS rebind can still slip
-        between the two. Closing that needs pinning the connection to the
-        vetted address; it is documented in the threat model rather than
-        claimed to be solved.
+        The addresses are returned rather than discarded so that fetch can
+        connect to one of them directly. Resolving once and connecting to the
+        answer closes the window in which a name could resolve to a public
+        address for this check and a private one for the connection that
+        follows, and it also guarantees the HTTP checks and the DNS checks are
+        describing the same server.
         """
         if not host:
             raise BlockedAddressError("Request has no host to check.")
 
-        cached = self._address_cache.get(host)
-        if cached is False:
-            raise BlockedAddressError(f"{host} resolves outside public address space.")
-        if cached:
-            return
+        if host in self._address_cache:
+            cached = self._address_cache[host]
+            if cached is None:
+                raise BlockedAddressError(f"{host} resolves outside public address space.")
+            return cached
 
         addresses = await self.resolved_addresses(host)
         allowed = bool(addresses) and all(is_public_address(address) for address in addresses)
-        self._address_cache[host] = allowed
+        self._address_cache[host] = addresses if allowed else None
 
         if not allowed:
             logger.warning("refusing request to %s; resolved addresses %s", host, addresses)
             raise BlockedAddressError(f"{host} resolves outside public address space.")
+
+        return addresses
 
 
 async def _read_capped(response: httpx.Response) -> bytes:
